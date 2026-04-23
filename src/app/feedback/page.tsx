@@ -1,6 +1,7 @@
 "use client";
 
 import Sidebar from "@/components/Sidebar";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { useState } from "react";
 import { CheckCircle, XCircle, Edit3, User } from "lucide-react";
 
@@ -38,17 +39,6 @@ const allFeedback: FeedbackItem[] = [
   },
   {
     id: 2,
-    studentName: "Ben Okafor",
-    studentId: "STU2402",
-    module: "CS201",
-    assignment: "Essay 1 — Critical Analysis",
-    submittedDate: "12 Mar 2026",
-    status: "pending",
-    grade: "C+",
-    feedback: `Ben's essay shows engagement with the core topic, though the analysis lacks the depth expected at this level of study. The introduction makes a reasonable attempt at framing the argument, but the central thesis remains underdeveloped throughout.\n\nStructure is adequate with a clear three-part division, but transitions between sections are abrupt. The use of sources is limited — only four references are cited, and reliance on a single textbook is evident. Broader engagement with the literature would significantly strengthen the work.\n\nOriginality is minimal; Ben largely summarises existing positions without offering independent critique. The conclusion restates key points effectively but adds little new insight.\n\nWith focused revision, particularly in deepening the analysis and expanding the source base, this work has potential to reach a higher grade.`,
-  },
-  {
-    id: 3,
     studentName: "Clara Svensson",
     studentId: "STU2403",
     module: "CS310",
@@ -56,32 +46,10 @@ const allFeedback: FeedbackItem[] = [
     submittedDate: "10 Mar 2026",
     status: "approved",
     grade: "A-",
-    feedback: `Clara's lab report is exemplary in its structure and methodological clarity. The introduction contextualises the experiment well within the broader field, and the methodology section is detailed and reproducible.\n\nResults are presented clearly with well-labelled figures and tables. The discussion demonstrates strong critical thinking, connecting outcomes to theoretical frameworks with appropriate nuance. Clara correctly identifies limitations and suggests meaningful avenues for future investigation.\n\nMinor deductions relate to two typographical errors in the bibliography and one formula that could have been explained more clearly. These are negligible given the overall quality.\n\nThis is an outstanding submission that demonstrates both technical competence and the ability to critically engage with experimental findings.`,
+    feedback: `Clara's lab report is exemplary in its structure and methodological clarity. The introduction contextualises the experiment well within the broader field, and the methodology section is detailed and reproducible.\n\nResults are presented clearly with well-labelled figures and tables. The discussion demonstrates strong critical thinking, connecting outcomes to theoretical frameworks with appropriate nuance. Clara correctly identifies limitations and suggests meaningful avenues for future investigation.\n\nMinor deductions relate to two typographical errors in the bibliography. These are negligible given the overall quality.\n\nThis is an outstanding submission demonstrating both technical competence and the ability to critically engage with experimental findings.`,
   },
   {
-    id: 4,
-    studentName: "David Kim",
-    studentId: "STU2404",
-    module: "CS310",
-    assignment: "Lab Report 2",
-    submittedDate: "10 Mar 2026",
-    status: "pending",
-    grade: "B",
-    feedback: `David's report covers all required sections with adequate detail. The methodology is clearly laid out and the experiment appears to have been conducted rigorously. Results are presented in a logical order.\n\nThe discussion section, while competent, tends toward description rather than analysis. David identifies the key results but does not consistently connect them back to the underlying theoretical framework. Stronger interpretation of the anomalous readings in Table 3 would have been beneficial.\n\nCitation practice is consistent and correctly formatted throughout. The conclusion summarises findings accurately.\n\nThis is a solid submission that demonstrates good laboratory skills and competent scientific writing.`,
-  },
-  {
-    id: 5,
-    studentName: "Emma Patel",
-    studentId: "STU2405",
-    module: "CS415",
-    assignment: "Research Proposal",
-    submittedDate: "15 Mar 2026",
-    status: "pending",
-    grade: "A",
-    feedback: `Emma's research proposal is exceptional in its scope, clarity, and academic rigour. The research question is precisely formulated and clearly significant within the field of machine learning for healthcare applications.\n\nThe literature review is comprehensive, covering 24 recent sources and effectively identifying the gap this research addresses. The proposed methodology is detailed and realistic, with a well-constructed timeline and clear success metrics.\n\nEthical considerations are addressed thoughtfully, including a discussion of dataset bias and patient data privacy — a mature and important addition. The writing is consistently clear and professional throughout.\n\nThis proposal demonstrates a high level of scholarly preparedness and is recommended for progression to the full research phase without revision.`,
-  },
-  {
-    id: 6,
+    id: 3,
     studentName: "Finn Murphy",
     studentId: "STU2406",
     module: "CS415",
@@ -89,39 +57,20 @@ const allFeedback: FeedbackItem[] = [
     submittedDate: "15 Mar 2026",
     status: "rejected",
     grade: "D",
-    feedback: `Finn's proposal requires substantial revision before it can proceed. The research question as stated is too broad to be meaningfully addressed within the proposed scope, and no clear hypothesis is articulated.\n\nThe literature review cites only five sources, none published within the last three years, suggesting insufficient engagement with the current state of the field. The methodology section describes the intent to "collect data" without specifying sources, instruments, or analysis approaches.\n\nNo timeline, ethical considerations, or success metrics are included, which are mandatory components of a research proposal at this level.\n\nFinn should schedule a meeting with his supervisor before resubmission. A significant rework of the core research question and methodology is required.`,
-  },
-  {
-    id: 7,
-    studentName: "Grace Liu",
-    studentId: "STU2407",
-    module: "CS201",
-    assignment: "Essay 1 — Critical Analysis",
-    submittedDate: "12 Mar 2026",
-    status: "pending",
-    grade: "B+",
-    feedback: `Grace's essay demonstrates solid critical thinking and a mature academic voice throughout. The central argument is clearly stated and consistently supported across all three main sections.\n\nEngagement with secondary literature is strong, with 11 well-chosen sources integrated effectively. Analysis goes beyond mere summary to offer genuine evaluative commentary in most instances, though the middle section occasionally lapses into paraphrase.\n\nStructure is clear and the writing flows well. The conclusion is particularly strong, offering a nuanced synthesis that revisits the thesis with added depth.\n\nThis is a well-crafted piece of academic writing that demonstrates commendable mastery of the subject matter.`,
-  },
-  {
-    id: 8,
-    studentName: "Hassan Al-Rashid",
-    studentId: "STU2408",
-    module: "CS310",
-    assignment: "Lab Report 2",
-    submittedDate: "10 Mar 2026",
-    status: "approved",
-    grade: "A",
-    feedback: `Hassan's lab report is outstanding in both its thoroughness and analytical precision. Every section meets or exceeds expectations for this level of study.\n\nThe experimental design is sound and clearly explained. Results are not only accurately recorded but thoughtfully interrogated — Hassan demonstrates an impressive ability to reason about sources of error and their likely impact on outcomes.\n\nThe discussion draws on the wider literature effectively and proposes two novel interpretations that add genuine value to the analysis. The reference list is comprehensive, correctly formatted, and includes three primary research papers.\n\nThis is an excellent submission that reflects the work of a student operating at the top of the cohort.`,
+    feedback: `Finn's proposal requires substantial revision before it can proceed. The research question as stated is too broad to be meaningfully addressed within the proposed scope, and no clear hypothesis is articulated.\n\nThe literature review cites only five sources, none published within the last three years, suggesting insufficient engagement with the current state of the field. The methodology section describes the intent to "collect data" without specifying sources, instruments, or analysis approaches.\n\nNo timeline, ethical considerations, or success metrics are included — all mandatory components at this level.\n\nFinn should schedule a meeting with his supervisor before resubmission. A significant rework of the core research question and methodology is required.`,
   },
 ];
 
 export default function FeedbackPage() {
+  const { user, loading } = useAuthGuard("lecturer");
   const [selectedId, setSelectedId] = useState<number>(1);
   const [filterModule, setFilterModule] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [statuses, setStatuses] = useState<Record<number, FeedbackStatus>>(
     Object.fromEntries(allFeedback.map((f) => [f.id, f.status]))
   );
+
+  if (loading || !user) return null;
 
   const modules = Array.from(new Set(allFeedback.map((f) => f.module)));
 
@@ -288,7 +237,6 @@ export default function FeedbackPage() {
 
           {/* Detail panel */}
           <div style={{ flex: 1, overflowY: "auto", padding: "28px", backgroundColor: "#fff" }}>
-            {/* Student header */}
             <div
               style={{
                 display: "flex",
@@ -336,7 +284,7 @@ export default function FeedbackPage() {
               </span>
             </div>
 
-            {/* Assignment info + grade */}
+            {/* Assignment + grade */}
             <div
               style={{
                 backgroundColor: "#f8fafc",
@@ -349,15 +297,7 @@ export default function FeedbackPage() {
               }}
             >
               <div>
-                <p
-                  style={{
-                    fontSize: "11px",
-                    color: "#64748b",
-                    fontWeight: "600",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                  }}
-                >
+                <p style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                   Assignment
                 </p>
                 <p style={{ fontSize: "14px", color: "#1e293b", fontWeight: "500", marginTop: "3px" }}>
@@ -365,15 +305,7 @@ export default function FeedbackPage() {
                 </p>
               </div>
               <div style={{ textAlign: "right" }}>
-                <p
-                  style={{
-                    fontSize: "11px",
-                    color: "#64748b",
-                    fontWeight: "600",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                  }}
-                >
+                <p style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                   Suggested Grade
                 </p>
                 <p style={{ fontSize: "26px", fontWeight: "700", color: "#1e293b", marginTop: "2px" }}>
@@ -392,26 +324,10 @@ export default function FeedbackPage() {
                 marginBottom: "20px",
               }}
             >
-              <h3
-                style={{
-                  fontSize: "11px",
-                  fontWeight: "600",
-                  color: "#64748b",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                  marginBottom: "14px",
-                }}
-              >
+              <h3 style={{ fontSize: "11px", fontWeight: "600", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "14px" }}>
                 AI-Generated Feedback
               </h3>
-              <div
-                style={{
-                  fontSize: "14px",
-                  color: "#374151",
-                  lineHeight: "1.75",
-                  whiteSpace: "pre-line",
-                }}
-              >
+              <div style={{ fontSize: "14px", color: "#374151", lineHeight: "1.75", whiteSpace: "pre-line" }}>
                 {selected.feedback}
               </div>
             </div>
@@ -422,75 +338,41 @@ export default function FeedbackPage() {
                 <button
                   onClick={() => reject(selected.id)}
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    padding: "10px 18px",
-                    borderRadius: "8px",
-                    border: "1px solid #fca5a5",
-                    backgroundColor: "#fff",
-                    color: "#dc2626",
-                    fontSize: "14px",
-                    fontWeight: "500",
-                    cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: "6px",
+                    padding: "10px 18px", borderRadius: "8px",
+                    border: "1px solid #fca5a5", backgroundColor: "#fff",
+                    color: "#dc2626", fontSize: "14px", fontWeight: "500", cursor: "pointer",
                   }}
                 >
-                  <XCircle size={16} />
-                  Reject
+                  <XCircle size={16} /> Reject
                 </button>
                 <button
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    padding: "10px 18px",
-                    borderRadius: "8px",
-                    border: "1px solid #d1d5db",
-                    backgroundColor: "#fff",
-                    color: "#374151",
-                    fontSize: "14px",
-                    fontWeight: "500",
-                    cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: "6px",
+                    padding: "10px 18px", borderRadius: "8px",
+                    border: "1px solid #d1d5db", backgroundColor: "#fff",
+                    color: "#374151", fontSize: "14px", fontWeight: "500", cursor: "pointer",
                   }}
                 >
-                  <Edit3 size={16} />
-                  Edit
+                  <Edit3 size={16} /> Edit
                 </button>
                 <button
                   onClick={() => approve(selected.id)}
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    padding: "10px 22px",
-                    borderRadius: "8px",
-                    border: "none",
-                    backgroundColor: "#16a34a",
-                    color: "#fff",
-                    fontSize: "14px",
-                    fontWeight: "600",
-                    cursor: "pointer",
-                    marginLeft: "auto",
+                    display: "flex", alignItems: "center", gap: "6px",
+                    padding: "10px 22px", borderRadius: "8px",
+                    border: "none", backgroundColor: "#16a34a",
+                    color: "#fff", fontSize: "14px", fontWeight: "600",
+                    cursor: "pointer", marginLeft: "auto",
                   }}
                 >
-                  <CheckCircle size={16} />
-                  Approve & Send
+                  <CheckCircle size={16} /> Approve & Send
                 </button>
               </div>
             )}
 
             {statuses[selected.id] === "approved" && (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  padding: "14px 16px",
-                  backgroundColor: "#f0fdf4",
-                  borderRadius: "8px",
-                  border: "1px solid #bbf7d0",
-                }}
-              >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "14px 16px", backgroundColor: "#f0fdf4", borderRadius: "8px", border: "1px solid #bbf7d0" }}>
                 <CheckCircle size={16} color="#16a34a" />
                 <span style={{ fontSize: "14px", color: "#15803d", fontWeight: "500" }}>
                   Feedback approved and sent to student.
@@ -499,17 +381,7 @@ export default function FeedbackPage() {
             )}
 
             {statuses[selected.id] === "rejected" && (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  padding: "14px 16px",
-                  backgroundColor: "#fef2f2",
-                  borderRadius: "8px",
-                  border: "1px solid #fecaca",
-                }}
-              >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "14px 16px", backgroundColor: "#fef2f2", borderRadius: "8px", border: "1px solid #fecaca" }}>
                 <XCircle size={16} color="#dc2626" />
                 <span style={{ fontSize: "14px", color: "#b91c1c", fontWeight: "500" }}>
                   Feedback rejected. This submission will need manual review.

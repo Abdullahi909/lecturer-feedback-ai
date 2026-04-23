@@ -1,5 +1,8 @@
+"use client";
+
 import Sidebar from "@/components/Sidebar";
 import StatCard from "@/components/StatCard";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 import {
   Clock,
   CheckCircle,
@@ -56,12 +59,18 @@ const statusConfig: Record<string, { label: string; color: string; bg: string }>
 };
 
 export default function DashboardPage() {
+  const { user, loading } = useAuthGuard("lecturer");
+
   const today = new Date().toLocaleDateString("en-GB", {
     weekday: "long",
     day: "numeric",
     month: "long",
     year: "numeric",
   });
+
+  if (loading || !user) return null;
+
+  const firstName = user.name.split(" ")[0];
 
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
@@ -71,11 +80,9 @@ export default function DashboardPage() {
         {/* Header */}
         <div style={{ marginBottom: "28px" }}>
           <h1 style={{ fontSize: "22px", fontWeight: "700", color: "#1e293b" }}>
-            Good morning, Dr. Mitchell
+            Good morning, {firstName}
           </h1>
-          <p style={{ fontSize: "14px", color: "#64748b", marginTop: "4px" }}>
-            {today}
-          </p>
+          <p style={{ fontSize: "14px", color: "#64748b", marginTop: "4px" }}>{today}</p>
         </div>
 
         {/* Alert banner */}
@@ -93,8 +100,8 @@ export default function DashboardPage() {
         >
           <AlertCircle size={18} color="#2563eb" />
           <p style={{ fontSize: "14px", color: "#1d4ed8" }}>
-            <strong>74 submissions</strong> are awaiting feedback across 2 modules. Your next deadline is{" "}
-            <strong>10 Mar 2026</strong>.
+            <strong>74 submissions</strong> are awaiting feedback across 2 modules. Your next
+            deadline is <strong>10 Mar 2026</strong>.
           </p>
         </div>
 
@@ -123,20 +130,8 @@ export default function DashboardPage() {
             iconBg="#dcfce7"
             note="This term"
           />
-          <StatCard
-            label="Active Modules"
-            value={4}
-            icon={BookOpen}
-            iconColor="#2563eb"
-            iconBg="#dbeafe"
-          />
-          <StatCard
-            label="Total Students"
-            value={174}
-            icon={Users}
-            iconColor="#7c3aed"
-            iconBg="#ede9fe"
-          />
+          <StatCard label="Active Modules" value={4} icon={BookOpen} iconColor="#2563eb" iconBg="#dbeafe" />
+          <StatCard label="Total Students" value={174} icon={Users} iconColor="#7c3aed" iconBg="#ede9fe" />
         </div>
 
         {/* Recent assignments */}
@@ -199,12 +194,7 @@ export default function DashboardPage() {
               {recentAssignments.map((a, i) => {
                 const s = statusConfig[a.status];
                 return (
-                  <tr
-                    key={a.id}
-                    style={{
-                      borderTop: i === 0 ? "none" : "1px solid #f1f5f9",
-                    }}
-                  >
+                  <tr key={a.id} style={{ borderTop: i === 0 ? "none" : "1px solid #f1f5f9" }}>
                     <td style={{ padding: "14px 20px" }}>
                       <span
                         style={{

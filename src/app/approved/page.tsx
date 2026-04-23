@@ -1,5 +1,8 @@
+"use client";
+
 import Sidebar from "@/components/Sidebar";
 import StatCard from "@/components/StatCard";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { CheckCircle, Send, BarChart2, ChevronRight } from "lucide-react";
 import Link from "next/link";
 
@@ -31,51 +34,6 @@ const approvedSubmissions = [
     grade: "B+",
     approvedDate: "01 Mar 2026",
   },
-  {
-    id: 4,
-    studentName: "Priya Nair",
-    studentId: "STU2310",
-    module: "CS101",
-    assignment: "Introductory Essay",
-    grade: "A-",
-    approvedDate: "01 Mar 2026",
-  },
-  {
-    id: 5,
-    studentName: "Lucas Ferreira",
-    studentId: "STU2311",
-    module: "CS101",
-    assignment: "Introductory Essay",
-    grade: "B",
-    approvedDate: "28 Feb 2026",
-  },
-  {
-    id: 6,
-    studentName: "Mei-Ling Zhou",
-    studentId: "STU2312",
-    module: "CS101",
-    assignment: "Introductory Essay",
-    grade: "A",
-    approvedDate: "28 Feb 2026",
-  },
-  {
-    id: 7,
-    studentName: "Omar Hassan",
-    studentId: "STU2313",
-    module: "CS101",
-    assignment: "Introductory Essay",
-    grade: "B-",
-    approvedDate: "28 Feb 2026",
-  },
-  {
-    id: 8,
-    studentName: "Sophia Rossi",
-    studentId: "STU2314",
-    module: "CS101",
-    assignment: "Introductory Essay",
-    grade: "C+",
-    approvedDate: "27 Feb 2026",
-  },
 ];
 
 function gradeStyle(grade: string): { color: string; bg: string } {
@@ -86,12 +44,15 @@ function gradeStyle(grade: string): { color: string; bg: string } {
 }
 
 export default function ApprovedPage() {
+  const { user, loading } = useAuthGuard("lecturer");
+
+  if (loading || !user) return null;
+
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
       <Sidebar />
 
       <main style={{ flex: 1, padding: "32px", overflowY: "auto" }}>
-        {/* Header */}
         <div style={{ marginBottom: "28px" }}>
           <h1 style={{ fontSize: "22px", fontWeight: "700", color: "#1e293b" }}>
             Approved Feedback
@@ -101,7 +62,6 @@ export default function ApprovedPage() {
           </p>
         </div>
 
-        {/* Stats */}
         <div
           style={{
             display: "grid",
@@ -110,33 +70,11 @@ export default function ApprovedPage() {
             marginBottom: "32px",
           }}
         >
-          <StatCard
-            label="Total Approved"
-            value={62}
-            icon={CheckCircle}
-            iconColor="#16a34a"
-            iconBg="#dcfce7"
-            note="This term"
-          />
-          <StatCard
-            label="Sent to Students"
-            value={62}
-            icon={Send}
-            iconColor="#2563eb"
-            iconBg="#dbeafe"
-            note="100% dispatched"
-          />
-          <StatCard
-            label="Average Grade"
-            value="B+"
-            icon={BarChart2}
-            iconColor="#7c3aed"
-            iconBg="#ede9fe"
-            note="Across all modules"
-          />
+          <StatCard label="Total Approved" value={62} icon={CheckCircle} iconColor="#16a34a" iconBg="#dcfce7" note="This term" />
+          <StatCard label="Sent to Students" value={62} icon={Send} iconColor="#2563eb" iconBg="#dbeafe" note="100% dispatched" />
+          <StatCard label="Average Grade" value="B+" icon={BarChart2} iconColor="#7c3aed" iconBg="#ede9fe" note="Across all modules" />
         </div>
 
-        {/* Table */}
         <div
           style={{
             backgroundColor: "#ffffff",
@@ -157,7 +95,7 @@ export default function ApprovedPage() {
               Approved Submissions
             </h2>
             <span style={{ fontSize: "13px", color: "#64748b" }}>
-              {approvedSubmissions.length} shown · 62 total
+              {approvedSubmissions.length} recent · 62 total this term
             </span>
           </div>
 
@@ -186,10 +124,7 @@ export default function ApprovedPage() {
               {approvedSubmissions.map((a, i) => {
                 const gs = gradeStyle(a.grade);
                 return (
-                  <tr
-                    key={a.id}
-                    style={{ borderTop: i === 0 ? "none" : "1px solid #f1f5f9" }}
-                  >
+                  <tr key={a.id} style={{ borderTop: i === 0 ? "none" : "1px solid #f1f5f9" }}>
                     <td style={{ padding: "14px 20px", fontSize: "14px", fontWeight: "500", color: "#1e293b" }}>
                       {a.studentName}
                     </td>
@@ -197,16 +132,7 @@ export default function ApprovedPage() {
                       {a.studentId}
                     </td>
                     <td style={{ padding: "14px 20px" }}>
-                      <span
-                        style={{
-                          fontSize: "12px",
-                          fontWeight: "600",
-                          color: "#3b82f6",
-                          backgroundColor: "#eff6ff",
-                          padding: "3px 8px",
-                          borderRadius: "4px",
-                        }}
-                      >
+                      <span style={{ fontSize: "12px", fontWeight: "600", color: "#3b82f6", backgroundColor: "#eff6ff", padding: "3px 8px", borderRadius: "4px" }}>
                         {a.module}
                       </span>
                     </td>
@@ -214,16 +140,7 @@ export default function ApprovedPage() {
                       {a.assignment}
                     </td>
                     <td style={{ padding: "14px 20px" }}>
-                      <span
-                        style={{
-                          fontSize: "13px",
-                          fontWeight: "700",
-                          color: gs.color,
-                          backgroundColor: gs.bg,
-                          padding: "3px 10px",
-                          borderRadius: "20px",
-                        }}
-                      >
+                      <span style={{ fontSize: "13px", fontWeight: "700", color: gs.color, backgroundColor: gs.bg, padding: "3px 10px", borderRadius: "20px" }}>
                         {a.grade}
                       </span>
                     </td>
@@ -231,36 +148,12 @@ export default function ApprovedPage() {
                       {a.approvedDate}
                     </td>
                     <td style={{ padding: "14px 20px" }}>
-                      <span
-                        style={{
-                          fontSize: "12px",
-                          fontWeight: "500",
-                          color: "#16a34a",
-                          backgroundColor: "#dcfce7",
-                          padding: "3px 10px",
-                          borderRadius: "20px",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "4px",
-                        }}
-                      >
-                        <CheckCircle size={11} />
-                        Sent
+                      <span style={{ fontSize: "12px", fontWeight: "500", color: "#16a34a", backgroundColor: "#dcfce7", padding: "3px 10px", borderRadius: "20px", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                        <CheckCircle size={11} /> Sent
                       </span>
                     </td>
                     <td style={{ padding: "14px 20px" }}>
-                      <Link
-                        href="/feedback"
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "4px",
-                          fontSize: "13px",
-                          color: "#3b82f6",
-                          textDecoration: "none",
-                          fontWeight: "500",
-                        }}
-                      >
+                      <Link href="/feedback" style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "13px", color: "#3b82f6", textDecoration: "none", fontWeight: "500" }}>
                         View <ChevronRight size={14} />
                       </Link>
                     </td>

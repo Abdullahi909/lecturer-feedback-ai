@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Upload,
@@ -10,7 +11,7 @@ import {
   Settings,
   LogOut,
 } from "lucide-react";
-import clsx from "clsx";
+import type { StoredUser } from "@/hooks/useAuthGuard";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -22,6 +23,18 @@ const navItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [user, setUser] = useState<StoredUser | null>(null);
+
+  useEffect(() => {
+    const raw = localStorage.getItem("feedbackai_user");
+    if (raw) setUser(JSON.parse(raw) as StoredUser);
+  }, []);
+
+  function handleLogout() {
+    localStorage.removeItem("feedbackai_user");
+    router.push("/login");
+  }
 
   return (
     <aside
@@ -31,7 +44,6 @@ export default function Sidebar() {
         backgroundColor: "#1e293b",
         display: "flex",
         flexDirection: "column",
-        padding: "0",
         flexShrink: 0,
       }}
     >
@@ -106,21 +118,44 @@ export default function Sidebar() {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: "13px",
+              fontSize: "12px",
               fontWeight: "600",
               color: "#fff",
               flexShrink: 0,
             }}
           >
-            SM
+            {user?.initials ?? "—"}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: "13px", fontWeight: "500", color: "#f1f5f9", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              Dr. S. Mitchell
+            <p
+              style={{
+                fontSize: "13px",
+                fontWeight: "500",
+                color: "#f1f5f9",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {user?.name ?? ""}
             </p>
-            <p style={{ fontSize: "11px", color: "#64748b" }}>Computer Science</p>
+            <p style={{ fontSize: "11px", color: "#64748b" }}>Lecturer</p>
           </div>
-          <LogOut size={14} color="#64748b" style={{ cursor: "pointer", flexShrink: 0 }} />
+          <button
+            onClick={handleLogout}
+            title="Sign out"
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "4px",
+              display: "flex",
+              alignItems: "center",
+              flexShrink: 0,
+            }}
+          >
+            <LogOut size={14} color="#64748b" />
+          </button>
         </div>
       </div>
     </aside>
