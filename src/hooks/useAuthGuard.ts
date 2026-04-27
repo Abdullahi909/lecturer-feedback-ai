@@ -2,36 +2,16 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-/**
- * The shape of the user object stored in localStorage under "feedbackai_user".
- * Written on login, read by every protected page and the Sidebar.
- */
+// Shape of the session object written to localStorage on login
 export type StoredUser = {
   name: string;
   initials: string;
   role: "lecturer" | "student";
 };
 
-/**
- * useAuthGuard
- *
- * Protects client pages from unauthenticated access. Must be called at the
- * top of any page that requires a logged-in user.
- *
- * On mount it reads localStorage for a session object. If none exists the user
- * is sent to /login. If the session role does not match the required role, the
- * user is sent to their own home page instead (prevents a student from viewing
- * lecturer pages and vice versa).
- *
- * Returns { user, loading }. Pages should render null while loading is true to
- * prevent a flash of protected content before the redirect fires.
- *
- * @param requiredRole - The role this page is restricted to. Defaults to "lecturer".
- *
- * @example
- * const { user, loading } = useAuthGuard("lecturer");
- * if (loading || !user) return null;
- */
+// Protects a page by checking the stored session on mount.
+// Returns { user, loading } — pages should render null while loading
+// to avoid a flash of protected content before the redirect fires.
 export function useAuthGuard(requiredRole: "lecturer" | "student" = "lecturer"): {
   user: StoredUser | null;
   loading: boolean;
@@ -41,10 +21,11 @@ export function useAuthGuard(requiredRole: "lecturer" | "student" = "lecturer"):
   const router = useRouter();
 
   useEffect(() => {
+    // localStorage is only safe inside useEffect — reading it at module level
+    // throws a ReferenceError during server-side rendering
     const raw = localStorage.getItem("feedbackai_user");
 
     if (!raw) {
-      // No session — send to login
       router.replace("/login");
       return;
     }
@@ -52,7 +33,7 @@ export function useAuthGuard(requiredRole: "lecturer" | "student" = "lecturer"):
     const parsed = JSON.parse(raw) as StoredUser;
 
     if (parsed.role !== requiredRole) {
-      // Wrong role — redirect to the user's own home page
+      // Wrong role — redirect each user to their own home rather than showing a blank page
       router.replace(parsed.role === "lecturer" ? "/dashboard" : "/student");
       return;
     }

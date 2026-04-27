@@ -14,11 +14,11 @@ import {
 import type { StoredUser } from "@/hooks/useAuthGuard";
 
 const navItems = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Upload Assignments", href: "/upload", icon: Upload },
-  { label: "Feedback Review", href: "/feedback", icon: FileText },
-  { label: "Approved", href: "/approved", icon: CheckSquare },
-  { label: "Settings", href: "/settings", icon: Settings },
+  { label: "Dashboard",          href: "/dashboard", icon: LayoutDashboard },
+  { label: "Upload Assignments",  href: "/upload",    icon: Upload },
+  { label: "Feedback Review",     href: "/feedback",  icon: FileText },
+  { label: "Approved",            href: "/approved",  icon: CheckSquare },
+  { label: "Settings",            href: "/settings",  icon: Settings },
 ];
 
 export default function Sidebar() {
@@ -27,6 +27,7 @@ export default function Sidebar() {
   const [user, setUser] = useState<StoredUser | null>(null);
 
   useEffect(() => {
+    // localStorage is not available during SSR, so we read it on mount only
     const raw = localStorage.getItem("feedbackai_user");
     if (raw) setUser(JSON.parse(raw) as StoredUser);
   }, []);
@@ -47,29 +48,15 @@ export default function Sidebar() {
         flexShrink: 0,
       }}
     >
-      {/* Logo */}
-      <div
-        style={{
-          padding: "24px 20px",
-          borderBottom: "1px solid rgba(255,255,255,0.08)",
-        }}
-      >
-        <span
-          style={{
-            fontSize: "18px",
-            fontWeight: "700",
-            color: "#ffffff",
-            letterSpacing: "-0.3px",
-          }}
-        >
+      {/* Branding */}
+      <div style={{ padding: "24px 20px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+        <span style={{ fontSize: "18px", fontWeight: "700", color: "#ffffff", letterSpacing: "-0.3px" }}>
           FeedbackAI
         </span>
-        <p style={{ fontSize: "11px", color: "#94a3b8", marginTop: "2px" }}>
-          Lecturer Portal
-        </p>
+        <p style={{ fontSize: "11px", color: "#94a3b8", marginTop: "2px" }}>Lecturer Portal</p>
       </div>
 
-      {/* Nav */}
+      {/* Navigation */}
       <nav style={{ flex: 1, padding: "16px 12px" }}>
         <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: "4px" }}>
           {navItems.map(({ label, href, icon: Icon }) => {
@@ -101,13 +88,8 @@ export default function Sidebar() {
         </ul>
       </nav>
 
-      {/* User info */}
-      <div
-        style={{
-          padding: "16px 20px",
-          borderTop: "1px solid rgba(255,255,255,0.08)",
-        }}
-      >
+      {/* Logged-in user */}
+      <div style={{ padding: "16px 20px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <div
             style={{
@@ -127,16 +109,7 @@ export default function Sidebar() {
             {user?.initials ?? "—"}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <p
-              style={{
-                fontSize: "13px",
-                fontWeight: "500",
-                color: "#f1f5f9",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
+            <p style={{ fontSize: "13px", fontWeight: "500", color: "#f1f5f9", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {user?.name ?? ""}
             </p>
             <p style={{ fontSize: "11px", color: "#64748b" }}>Lecturer</p>
@@ -144,15 +117,7 @@ export default function Sidebar() {
           <button
             onClick={handleLogout}
             title="Sign out"
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              padding: "4px",
-              display: "flex",
-              alignItems: "center",
-              flexShrink: 0,
-            }}
+            style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", display: "flex", alignItems: "center", flexShrink: 0 }}
           >
             <LogOut size={14} color="#64748b" />
           </button>

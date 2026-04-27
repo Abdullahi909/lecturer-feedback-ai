@@ -8,10 +8,11 @@ import { User, Bell, Check } from "lucide-react";
 type Tab = "profile" | "notifications";
 
 const tabs: { id: Tab; label: string; icon: typeof User }[] = [
-  { id: "profile", label: "Profile", icon: User },
+  { id: "profile",       label: "Profile",       icon: User },
   { id: "notifications", label: "Notifications", icon: Bell },
 ];
 
+// Shared form field styles
 const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "10px 12px",
@@ -36,29 +37,32 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("profile");
   const [saved, setSaved] = useState(false);
 
-  const [title, setTitle] = useState("Dr.");
-  const [firstName, setFirstName] = useState("Abdullahi");
-  const [lastName, setLastName] = useState("Mohamed");
-  const [email, setEmail] = useState("abdullahi@uni.ac.uk");
+  // Profile fields — pre-filled with Abdullahi's details
+  const [title,      setTitle]      = useState("Dr.");
+  const [firstName,  setFirstName]  = useState("Abdullahi");
+  const [lastName,   setLastName]   = useState("Mohamed");
+  const [email,      setEmail]      = useState("abdullahi@uni.ac.uk");
   const [department, setDepartment] = useState("Computer Science");
 
-  const [emailDeadlines, setEmailDeadlines] = useState(true);
+  // Notification toggles
+  const [emailDeadlines,   setEmailDeadlines]   = useState(true);
   const [emailSubmissions, setEmailSubmissions] = useState(false);
-  const [emailApprovals, setEmailApprovals] = useState(true);
-  const [summaryDigest, setSummaryDigest] = useState(true);
+  const [emailApprovals,   setEmailApprovals]   = useState(true);
+  const [summaryDigest,    setSummaryDigest]    = useState(true);
 
   if (loading || !user) return null;
 
   function handleSave() {
     setSaved(true);
+    // Reset confirmation banner after a short delay
     setTimeout(() => setSaved(false), 2500);
   }
 
   const notificationItems = [
-    { label: "Deadline reminders", description: "Email alerts 48 hours before a feedback deadline.", value: emailDeadlines, set: setEmailDeadlines },
-    { label: "New submission alerts", description: "Get notified when new student work is uploaded.", value: emailSubmissions, set: setEmailSubmissions },
-    { label: "Approval confirmations", description: "Confirmation when feedback is sent to a student.", value: emailApprovals, set: setEmailApprovals },
-    { label: "Weekly summary digest", description: "A weekly overview of pending and completed feedback.", value: summaryDigest, set: setSummaryDigest },
+    { label: "Deadline reminders",    description: "Email alerts 48 hours before a feedback deadline.",          value: emailDeadlines,   set: setEmailDeadlines },
+    { label: "New submission alerts",  description: "Get notified when new student work is uploaded.",            value: emailSubmissions, set: setEmailSubmissions },
+    { label: "Approval confirmations", description: "Confirmation when feedback is sent to a student.",           value: emailApprovals,   set: setEmailApprovals },
+    { label: "Weekly summary digest",  description: "A weekly overview of pending and completed feedback.",       value: summaryDigest,    set: setSummaryDigest },
   ];
 
   return (
@@ -74,7 +78,7 @@ export default function SettingsPage() {
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "180px 1fr", gap: "24px", alignItems: "start" }}>
-          {/* Tab nav */}
+          {/* Tab sidebar */}
           <div style={{ backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "8px" }}>
             {tabs.map(({ id, label, icon: Icon }) => {
               const active = activeTab === id;
@@ -106,7 +110,7 @@ export default function SettingsPage() {
             })}
           </div>
 
-          {/* Content */}
+          {/* Tab content */}
           <div style={{ backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "28px" }}>
             {activeTab === "profile" && (
               <div>
@@ -114,6 +118,7 @@ export default function SettingsPage() {
                   Profile Information
                 </h2>
 
+                {/* Avatar preview — updates live as name fields change */}
                 <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "24px", paddingBottom: "24px", borderBottom: "1px solid #f1f5f9" }}>
                   <div style={{ width: "52px", height: "52px", borderRadius: "50%", backgroundColor: "#3b82f6", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px", fontWeight: "700", color: "#fff", flexShrink: 0 }}>
                     {user.initials}
@@ -179,16 +184,11 @@ export default function SettingsPage() {
                       <p style={{ fontSize: "14px", fontWeight: "500", color: "#1e293b" }}>{label}</p>
                       <p style={{ fontSize: "13px", color: "#64748b", marginTop: "3px" }}>{description}</p>
                     </div>
+                    {/* Toggle switch — the knob position is driven by the boolean value */}
                     <button
                       onClick={() => set(!value)}
                       aria-label={`Toggle ${label}`}
-                      style={{
-                        width: "44px", height: "24px", borderRadius: "12px",
-                        backgroundColor: value ? "#3b82f6" : "#e2e8f0",
-                        border: "none", cursor: "pointer",
-                        position: "relative", flexShrink: 0,
-                        transition: "background-color 0.2s ease",
-                      }}
+                      style={{ width: "44px", height: "24px", borderRadius: "12px", backgroundColor: value ? "#3b82f6" : "#e2e8f0", border: "none", cursor: "pointer", position: "relative", flexShrink: 0, transition: "background-color 0.2s ease" }}
                     >
                       <span style={{ position: "absolute", top: "3px", left: value ? "23px" : "3px", width: "18px", height: "18px", borderRadius: "50%", backgroundColor: "#fff", transition: "left 0.2s ease", display: "block", boxShadow: "0 1px 3px rgba(0,0,0,0.15)" }} />
                     </button>

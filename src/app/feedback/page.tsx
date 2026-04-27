@@ -20,11 +20,12 @@ type FeedbackItem = {
 };
 
 const statusConfig: Record<FeedbackStatus, { label: string; color: string; bg: string }> = {
-  pending: { label: "Pending Review", color: "#d97706", bg: "#fef3c7" },
-  approved: { label: "Approved", color: "#16a34a", bg: "#dcfce7" },
-  rejected: { label: "Rejected", color: "#dc2626", bg: "#fee2e2" },
+  pending:  { label: "Pending Review", color: "#d97706", bg: "#fef3c7" },
+  approved: { label: "Approved",       color: "#16a34a", bg: "#dcfce7" },
+  rejected: { label: "Rejected",       color: "#dc2626", bg: "#fee2e2" },
 };
 
+// Static demo data — one of each status so the reviewer can see all states
 const allFeedback: FeedbackItem[] = [
   {
     id: 1,
@@ -66,6 +67,9 @@ export default function FeedbackPage() {
   const [selectedId, setSelectedId] = useState<number>(1);
   const [filterModule, setFilterModule] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+
+  // Mutable status map seeded from the static data so approvals/rejections
+  // update the UI immediately without touching the original array
   const [statuses, setStatuses] = useState<Record<number, FeedbackStatus>>(
     Object.fromEntries(allFeedback.map((f) => [f.id, f.status]))
   );
@@ -82,31 +86,19 @@ export default function FeedbackPage() {
 
   const selected = allFeedback.find((f) => f.id === selectedId) ?? allFeedback[0];
 
-  function approve(id: number) {
-    setStatuses((prev) => ({ ...prev, [id]: "approved" }));
-  }
-
-  function reject(id: number) {
-    setStatuses((prev) => ({ ...prev, [id]: "rejected" }));
-  }
+  const approve = (id: number) => setStatuses((prev) => ({ ...prev, [id]: "approved" }));
+  const reject  = (id: number) => setStatuses((prev) => ({ ...prev, [id]: "rejected" }));
 
   return (
+    // height: 100vh + overflow: hidden gives us a fixed viewport that the split
+    // panels scroll within independently, rather than the whole page scrolling
     <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
       <Sidebar />
 
       <main style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {/* Header */}
-        <div
-          style={{
-            padding: "24px 28px 20px",
-            borderBottom: "1px solid #e2e8f0",
-            backgroundColor: "#fff",
-            flexShrink: 0,
-          }}
-        >
-          <h1 style={{ fontSize: "22px", fontWeight: "700", color: "#1e293b" }}>
-            Feedback Review
-          </h1>
+        {/* Header + filters */}
+        <div style={{ padding: "24px 28px 20px", borderBottom: "1px solid #e2e8f0", backgroundColor: "#fff", flexShrink: 0 }}>
+          <h1 style={{ fontSize: "22px", fontWeight: "700", color: "#1e293b" }}>Feedback Review</h1>
           <p style={{ fontSize: "14px", color: "#64748b", marginTop: "4px" }}>
             Review, edit and approve AI-generated feedback before it reaches students.
           </p>
@@ -114,35 +106,15 @@ export default function FeedbackPage() {
             <select
               value={filterModule}
               onChange={(e) => setFilterModule(e.target.value)}
-              style={{
-                padding: "8px 12px",
-                borderRadius: "8px",
-                border: "1px solid #d1d5db",
-                fontSize: "13px",
-                color: "#1e293b",
-                backgroundColor: "#fff",
-                outline: "none",
-                cursor: "pointer",
-              }}
+              style={{ padding: "8px 12px", borderRadius: "8px", border: "1px solid #d1d5db", fontSize: "13px", color: "#1e293b", backgroundColor: "#fff", outline: "none", cursor: "pointer" }}
             >
               <option value="all">All Modules</option>
-              {modules.map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
+              {modules.map((m) => <option key={m} value={m}>{m}</option>)}
             </select>
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              style={{
-                padding: "8px 12px",
-                borderRadius: "8px",
-                border: "1px solid #d1d5db",
-                fontSize: "13px",
-                color: "#1e293b",
-                backgroundColor: "#fff",
-                outline: "none",
-                cursor: "pointer",
-              }}
+              style={{ padding: "8px 12px", borderRadius: "8px", border: "1px solid #d1d5db", fontSize: "13px", color: "#1e293b", backgroundColor: "#fff", outline: "none", cursor: "pointer" }}
             >
               <option value="all">All Statuses</option>
               <option value="pending">Pending</option>
@@ -157,16 +129,8 @@ export default function FeedbackPage() {
 
         {/* Split panel */}
         <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-          {/* Student list */}
-          <div
-            style={{
-              width: "320px",
-              flexShrink: 0,
-              borderRight: "1px solid #e2e8f0",
-              overflowY: "auto",
-              backgroundColor: "#f8fafc",
-            }}
-          >
+          {/* Left — student list */}
+          <div style={{ width: "320px", flexShrink: 0, borderRight: "1px solid #e2e8f0", overflowY: "auto", backgroundColor: "#f8fafc" }}>
             {filtered.length === 0 ? (
               <div style={{ padding: "40px 20px", textAlign: "center", color: "#94a3b8", fontSize: "14px" }}>
                 No submissions match the current filters.
@@ -185,6 +149,7 @@ export default function FeedbackPage() {
                       textAlign: "left",
                       border: "none",
                       borderBottom: "1px solid #e2e8f0",
+                      // Blue left border indicates the active selection
                       borderLeft: isSelected ? "3px solid #3b82f6" : "3px solid transparent",
                       backgroundColor: isSelected ? "#ffffff" : "transparent",
                       cursor: "pointer",
@@ -194,40 +159,16 @@ export default function FeedbackPage() {
                     }}
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: "14px", fontWeight: "600", color: "#1e293b" }}>
-                        {f.studentName}
-                      </span>
-                      <span
-                        style={{
-                          fontSize: "11px",
-                          fontWeight: "500",
-                          color: s.color,
-                          backgroundColor: s.bg,
-                          padding: "2px 8px",
-                          borderRadius: "20px",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
+                      <span style={{ fontSize: "14px", fontWeight: "600", color: "#1e293b" }}>{f.studentName}</span>
+                      <span style={{ fontSize: "11px", fontWeight: "500", color: s.color, backgroundColor: s.bg, padding: "2px 8px", borderRadius: "20px", whiteSpace: "nowrap" }}>
                         {s.label}
                       </span>
                     </div>
                     <div style={{ fontSize: "12px", color: "#64748b", display: "flex", alignItems: "center", gap: "6px" }}>
-                      <span
-                        style={{
-                          fontSize: "11px",
-                          fontWeight: "600",
-                          color: "#3b82f6",
-                          backgroundColor: "#eff6ff",
-                          padding: "2px 6px",
-                          borderRadius: "4px",
-                          flexShrink: 0,
-                        }}
-                      >
+                      <span style={{ fontSize: "11px", fontWeight: "600", color: "#3b82f6", backgroundColor: "#eff6ff", padding: "2px 6px", borderRadius: "4px", flexShrink: 0 }}>
                         {f.module}
                       </span>
-                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {f.assignment}
-                      </span>
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.assignment}</span>
                     </div>
                   </button>
                 );
@@ -235,95 +176,40 @@ export default function FeedbackPage() {
             )}
           </div>
 
-          {/* Detail panel */}
+          {/* Right — feedback detail */}
           <div style={{ flex: 1, overflowY: "auto", padding: "28px", backgroundColor: "#fff" }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                justifyContent: "space-between",
-                marginBottom: "24px",
-              }}
-            >
+            {/* Student identity */}
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "24px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-                <div
-                  style={{
-                    width: "44px",
-                    height: "44px",
-                    borderRadius: "50%",
-                    backgroundColor: "#eff6ff",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                  }}
-                >
+                <div style={{ width: "44px", height: "44px", borderRadius: "50%", backgroundColor: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                   <User size={20} color="#3b82f6" />
                 </div>
                 <div>
-                  <h2 style={{ fontSize: "17px", fontWeight: "700", color: "#1e293b" }}>
-                    {selected.studentName}
-                  </h2>
+                  <h2 style={{ fontSize: "17px", fontWeight: "700", color: "#1e293b" }}>{selected.studentName}</h2>
                   <p style={{ fontSize: "13px", color: "#64748b", marginTop: "2px" }}>
                     {selected.studentId} · {selected.module} · Submitted {selected.submittedDate}
                   </p>
                 </div>
               </div>
-              <span
-                style={{
-                  fontSize: "12px",
-                  fontWeight: "500",
-                  color: statusConfig[statuses[selected.id]].color,
-                  backgroundColor: statusConfig[statuses[selected.id]].bg,
-                  padding: "4px 12px",
-                  borderRadius: "20px",
-                  flexShrink: 0,
-                }}
-              >
+              <span style={{ fontSize: "12px", fontWeight: "500", color: statusConfig[statuses[selected.id]].color, backgroundColor: statusConfig[statuses[selected.id]].bg, padding: "4px 12px", borderRadius: "20px", flexShrink: 0 }}>
                 {statusConfig[statuses[selected.id]].label}
               </span>
             </div>
 
-            {/* Assignment + grade */}
-            <div
-              style={{
-                backgroundColor: "#f8fafc",
-                borderRadius: "10px",
-                padding: "16px 20px",
-                marginBottom: "20px",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
+            {/* Assignment metadata + grade */}
+            <div style={{ backgroundColor: "#f8fafc", borderRadius: "10px", padding: "16px 20px", marginBottom: "20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
-                <p style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                  Assignment
-                </p>
-                <p style={{ fontSize: "14px", color: "#1e293b", fontWeight: "500", marginTop: "3px" }}>
-                  {selected.assignment}
-                </p>
+                <p style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.05em" }}>Assignment</p>
+                <p style={{ fontSize: "14px", color: "#1e293b", fontWeight: "500", marginTop: "3px" }}>{selected.assignment}</p>
               </div>
               <div style={{ textAlign: "right" }}>
-                <p style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                  Suggested Grade
-                </p>
-                <p style={{ fontSize: "26px", fontWeight: "700", color: "#1e293b", marginTop: "2px" }}>
-                  {selected.grade}
-                </p>
+                <p style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.05em" }}>Suggested Grade</p>
+                <p style={{ fontSize: "26px", fontWeight: "700", color: "#1e293b", marginTop: "2px" }}>{selected.grade}</p>
               </div>
             </div>
 
-            {/* Feedback text */}
-            <div
-              style={{
-                backgroundColor: "#fff",
-                borderRadius: "10px",
-                border: "1px solid #e2e8f0",
-                padding: "20px",
-                marginBottom: "20px",
-              }}
-            >
+            {/* AI feedback text */}
+            <div style={{ backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "20px", marginBottom: "20px" }}>
               <h3 style={{ fontSize: "11px", fontWeight: "600", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "14px" }}>
                 AI-Generated Feedback
               </h3>
@@ -332,40 +218,16 @@ export default function FeedbackPage() {
               </div>
             </div>
 
-            {/* Actions */}
+            {/* Actions — only shown while the feedback is still pending */}
             {statuses[selected.id] === "pending" && (
               <div style={{ display: "flex", gap: "10px" }}>
-                <button
-                  onClick={() => reject(selected.id)}
-                  style={{
-                    display: "flex", alignItems: "center", gap: "6px",
-                    padding: "10px 18px", borderRadius: "8px",
-                    border: "1px solid #fca5a5", backgroundColor: "#fff",
-                    color: "#dc2626", fontSize: "14px", fontWeight: "500", cursor: "pointer",
-                  }}
-                >
+                <button onClick={() => reject(selected.id)} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 18px", borderRadius: "8px", border: "1px solid #fca5a5", backgroundColor: "#fff", color: "#dc2626", fontSize: "14px", fontWeight: "500", cursor: "pointer" }}>
                   <XCircle size={16} /> Reject
                 </button>
-                <button
-                  style={{
-                    display: "flex", alignItems: "center", gap: "6px",
-                    padding: "10px 18px", borderRadius: "8px",
-                    border: "1px solid #d1d5db", backgroundColor: "#fff",
-                    color: "#374151", fontSize: "14px", fontWeight: "500", cursor: "pointer",
-                  }}
-                >
+                <button style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 18px", borderRadius: "8px", border: "1px solid #d1d5db", backgroundColor: "#fff", color: "#374151", fontSize: "14px", fontWeight: "500", cursor: "pointer" }}>
                   <Edit3 size={16} /> Edit
                 </button>
-                <button
-                  onClick={() => approve(selected.id)}
-                  style={{
-                    display: "flex", alignItems: "center", gap: "6px",
-                    padding: "10px 22px", borderRadius: "8px",
-                    border: "none", backgroundColor: "#16a34a",
-                    color: "#fff", fontSize: "14px", fontWeight: "600",
-                    cursor: "pointer", marginLeft: "auto",
-                  }}
-                >
+                <button onClick={() => approve(selected.id)} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 22px", borderRadius: "8px", border: "none", backgroundColor: "#16a34a", color: "#fff", fontSize: "14px", fontWeight: "600", cursor: "pointer", marginLeft: "auto" }}>
                   <CheckCircle size={16} /> Approve & Send
                 </button>
               </div>
@@ -374,18 +236,14 @@ export default function FeedbackPage() {
             {statuses[selected.id] === "approved" && (
               <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "14px 16px", backgroundColor: "#f0fdf4", borderRadius: "8px", border: "1px solid #bbf7d0" }}>
                 <CheckCircle size={16} color="#16a34a" />
-                <span style={{ fontSize: "14px", color: "#15803d", fontWeight: "500" }}>
-                  Feedback approved and sent to student.
-                </span>
+                <span style={{ fontSize: "14px", color: "#15803d", fontWeight: "500" }}>Feedback approved and sent to student.</span>
               </div>
             )}
 
             {statuses[selected.id] === "rejected" && (
               <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "14px 16px", backgroundColor: "#fef2f2", borderRadius: "8px", border: "1px solid #fecaca" }}>
                 <XCircle size={16} color="#dc2626" />
-                <span style={{ fontSize: "14px", color: "#b91c1c", fontWeight: "500" }}>
-                  Feedback rejected. This submission will need manual review.
-                </span>
+                <span style={{ fontSize: "14px", color: "#b91c1c", fontWeight: "500" }}>Feedback rejected. This submission will need manual review.</span>
               </div>
             )}
           </div>

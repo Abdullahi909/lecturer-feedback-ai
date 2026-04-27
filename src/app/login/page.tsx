@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { StoredUser } from "@/hooks/useAuthGuard";
 
+// Hardcoded users — replace with a real auth provider for production
 const USERS: Record<string, { password: string; user: StoredUser }> = {
   abdullahi: {
     password: "password",
@@ -14,6 +15,7 @@ const USERS: Record<string, { password: string; user: StoredUser }> = {
   },
 };
 
+// Shared input and label styles reused across both form fields
 const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "11px 14px",
@@ -47,6 +49,7 @@ export default function LoginPage() {
       return;
     }
     localStorage.setItem("feedbackai_user", JSON.stringify(entry.user));
+    // Lecturers go to the dashboard; students go to their assignments view
     router.push(entry.user.role === "lecturer" ? "/dashboard" : "/student");
   }
 
@@ -73,14 +76,7 @@ export default function LoginPage() {
         }}
       >
         <div style={{ textAlign: "center", marginBottom: "32px" }}>
-          <span
-            style={{
-              fontSize: "22px",
-              fontWeight: "700",
-              color: "#1e293b",
-              letterSpacing: "-0.3px",
-            }}
-          >
+          <span style={{ fontSize: "22px", fontWeight: "700", color: "#1e293b", letterSpacing: "-0.3px" }}>
             FeedbackAI
           </span>
           <p style={{ fontSize: "13px", color: "#64748b", marginTop: "4px" }}>
@@ -116,58 +112,27 @@ export default function LoginPage() {
           </div>
 
           {error && (
-            <div
-              style={{
-                padding: "10px 14px",
-                borderRadius: "8px",
-                backgroundColor: "#fef2f2",
-                border: "1px solid #fecaca",
-                fontSize: "13px",
-                color: "#b91c1c",
-              }}
-            >
+            <div style={{ padding: "10px 14px", borderRadius: "8px", backgroundColor: "#fef2f2", border: "1px solid #fecaca", fontSize: "13px", color: "#b91c1c" }}>
               {error}
             </div>
           )}
 
           <button
             type="submit"
-            style={{
-              marginTop: "4px",
-              padding: "12px",
-              borderRadius: "8px",
-              backgroundColor: "#1e293b",
-              color: "#fff",
-              fontSize: "14px",
-              fontWeight: "600",
-              border: "none",
-              cursor: "pointer",
-              width: "100%",
-            }}
+            style={{ marginTop: "4px", padding: "12px", borderRadius: "8px", backgroundColor: "#1e293b", color: "#fff", fontSize: "14px", fontWeight: "600", border: "none", cursor: "pointer", width: "100%" }}
           >
             Sign In
           </button>
         </form>
 
-        <div
-          style={{
-            marginTop: "24px",
-            padding: "14px",
-            borderRadius: "8px",
-            backgroundColor: "#f8fafc",
-            border: "1px solid #e2e8f0",
-          }}
-        >
-          <p style={{ fontSize: "12px", fontWeight: "600", color: "#64748b", marginBottom: "6px" }}>
-            Demo credentials
-          </p>
+        {/* Demo hint — remove in production */}
+        <div style={{ marginTop: "24px", padding: "14px", borderRadius: "8px", backgroundColor: "#f8fafc", border: "1px solid #e2e8f0" }}>
+          <p style={{ fontSize: "12px", fontWeight: "600", color: "#64748b", marginBottom: "6px" }}>Demo credentials</p>
           <p style={{ fontSize: "12px", color: "#64748b" }}>
-            Lecturer:{" "}
-            <strong style={{ color: "#1e293b" }}>abdullahi</strong> / password
+            Lecturer: <strong style={{ color: "#1e293b" }}>abdullahi</strong> / password
           </p>
           <p style={{ fontSize: "12px", color: "#64748b", marginTop: "3px" }}>
-            Student:{" "}
-            <strong style={{ color: "#1e293b" }}>abdulali</strong> / password
+            Student: <strong style={{ color: "#1e293b" }}>abdulali</strong> / password
           </p>
         </div>
       </div>

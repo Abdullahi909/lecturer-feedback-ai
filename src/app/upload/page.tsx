@@ -12,33 +12,36 @@ const modules = [
   { code: "CS415", name: "Machine Learning" },
 ];
 
+// Fixed criteria weights sent to the AI with every feedback request
 const criteria = [
-  { label: "Critical Analysis", weight: 30 },
+  { label: "Critical Analysis",  weight: 30 },
   { label: "Structure & Clarity", weight: 25 },
-  { label: "Use of Sources", weight: 25 },
-  { label: "Originality", weight: 20 },
+  { label: "Use of Sources",      weight: 25 },
+  { label: "Originality",         weight: 20 },
 ];
 
-type UploadedFile = { name: string; size: string };
+type UploadedFile  = { name: string; size: string };
 type FeedbackResult = { feedback: string; grade: string };
 
 export default function UploadPage() {
   const { user, loading } = useAuthGuard("lecturer");
+
   const [selectedModule, setSelectedModule] = useState("");
   const [assignmentName, setAssignmentName] = useState("");
-  const [deadline, setDeadline] = useState("");
-  const [tone, setTone] = useState("Constructive");
-  const [dragOver, setDragOver] = useState(false);
-  const [files, setFiles] = useState<UploadedFile[]>([]);
-  const [generating, setGenerating] = useState(false);
-  const [result, setResult] = useState<FeedbackResult | null>(null);
-  const [apiError, setApiError] = useState<string | null>(null);
+  const [deadline,       setDeadline]       = useState("");
+  const [tone,           setTone]           = useState("Constructive");
+  const [dragOver,       setDragOver]       = useState(false);
+  const [files,          setFiles]          = useState<UploadedFile[]>([]);
+  const [generating,     setGenerating]     = useState(false);
+  const [result,         setResult]         = useState<FeedbackResult | null>(null);
+  const [apiError,       setApiError]       = useState<string | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (loading || !user) return null;
 
   function formatSize(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024)        return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
@@ -65,10 +68,11 @@ export default function UploadPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          // In production, studentName would come from parsing the uploaded file
           studentName: "Sample Student",
-          module: selectedModule || "General",
-          assignment: assignmentName || "Assignment",
-          criteria: criteria.map((c) => `${c.label} (${c.weight}%)`).join(", "),
+          module:      selectedModule || "General",
+          assignment:  assignmentName || "Assignment",
+          criteria:    criteria.map((c) => `${c.label} (${c.weight}%)`).join(", "),
           tone,
         }),
       });
@@ -93,27 +97,20 @@ export default function UploadPage() {
 
       <main style={{ flex: 1, padding: "32px", overflowY: "auto" }}>
         <div style={{ marginBottom: "28px" }}>
-          <h1 style={{ fontSize: "22px", fontWeight: "700", color: "#1e293b" }}>
-            Upload Assignments
-          </h1>
+          <h1 style={{ fontSize: "22px", fontWeight: "700", color: "#1e293b" }}>Upload Assignments</h1>
           <p style={{ fontSize: "14px", color: "#64748b", marginTop: "4px" }}>
             Upload student submissions and configure the assessment before generating AI feedback.
           </p>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: "24px", alignItems: "start" }}>
-          {/* Left — main form */}
+          {/* Left — assignment details + file upload */}
           <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-            {/* Assignment details */}
             <div style={{ backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "24px" }}>
-              <h2 style={{ fontSize: "15px", fontWeight: "600", color: "#1e293b", marginBottom: "20px" }}>
-                Assignment Details
-              </h2>
+              <h2 style={{ fontSize: "15px", fontWeight: "600", color: "#1e293b", marginBottom: "20px" }}>Assignment Details</h2>
               <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                 <div>
-                  <label style={{ display: "block", fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "6px" }}>
-                    Module
-                  </label>
+                  <label style={{ display: "block", fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "6px" }}>Module</label>
                   <select
                     value={selectedModule}
                     onChange={(e) => setSelectedModule(e.target.value)}
@@ -126,9 +123,7 @@ export default function UploadPage() {
                   </select>
                 </div>
                 <div>
-                  <label style={{ display: "block", fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "6px" }}>
-                    Assignment Name
-                  </label>
+                  <label style={{ display: "block", fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "6px" }}>Assignment Name</label>
                   <input
                     type="text"
                     value={assignmentName}
@@ -138,9 +133,7 @@ export default function UploadPage() {
                   />
                 </div>
                 <div>
-                  <label style={{ display: "block", fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "6px" }}>
-                    Feedback Deadline
-                  </label>
+                  <label style={{ display: "block", fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "6px" }}>Feedback Deadline</label>
                   <input
                     type="date"
                     value={deadline}
@@ -151,11 +144,8 @@ export default function UploadPage() {
               </div>
             </div>
 
-            {/* File upload */}
             <div style={{ backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "24px" }}>
-              <h2 style={{ fontSize: "15px", fontWeight: "600", color: "#1e293b", marginBottom: "20px" }}>
-                Student Submissions
-              </h2>
+              <h2 style={{ fontSize: "15px", fontWeight: "600", color: "#1e293b", marginBottom: "20px" }}>Student Submissions</h2>
               <div
                 onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
@@ -177,9 +167,7 @@ export default function UploadPage() {
                 <p style={{ fontSize: "13px", color: "#94a3b8", marginTop: "4px" }}>
                   or <span style={{ color: "#3b82f6", fontWeight: "500" }}>browse to upload</span>
                 </p>
-                <p style={{ fontSize: "12px", color: "#cbd5e1", marginTop: "8px" }}>
-                  Accepts PDF, DOCX, TXT — up to 10 MB each
-                </p>
+                <p style={{ fontSize: "12px", color: "#cbd5e1", marginTop: "8px" }}>Accepts PDF, DOCX, TXT — up to 10 MB each</p>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -206,14 +194,10 @@ export default function UploadPage() {
             </div>
           </div>
 
-          {/* Right — assessment config */}
+          {/* Right — criteria config + generate button */}
           <div style={{ backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "24px" }}>
-            <h2 style={{ fontSize: "15px", fontWeight: "600", color: "#1e293b", marginBottom: "6px" }}>
-              Assessment Criteria
-            </h2>
-            <p style={{ fontSize: "13px", color: "#64748b", marginBottom: "20px" }}>
-              Weights used when the AI generates feedback.
-            </p>
+            <h2 style={{ fontSize: "15px", fontWeight: "600", color: "#1e293b", marginBottom: "6px" }}>Assessment Criteria</h2>
+            <p style={{ fontSize: "13px", color: "#64748b", marginBottom: "20px" }}>Weights sent to the AI when generating feedback.</p>
 
             {criteria.map((c) => (
               <div key={c.label} style={{ marginBottom: "16px" }}>
@@ -228,9 +212,7 @@ export default function UploadPage() {
             ))}
 
             <div style={{ marginTop: "20px" }}>
-              <label style={{ display: "block", fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "6px" }}>
-                Feedback Tone
-              </label>
+              <label style={{ display: "block", fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "6px" }}>Feedback Tone</label>
               <select
                 value={tone}
                 onChange={(e) => setTone(e.target.value)}
@@ -269,11 +251,11 @@ export default function UploadPage() {
                 gap: "8px",
               }}
             >
+              {/* Spinner — @keyframes can't be inlined in a style prop, so it's injected below */}
               {generating && <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} />}
               {generating ? "Generating..." : "Generate Feedback"}
             </button>
 
-            {/* API error */}
             {apiError && (
               <div style={{ marginTop: "12px", padding: "12px 14px", borderRadius: "8px", backgroundColor: "#fef2f2", border: "1px solid #fecaca", display: "flex", gap: "8px" }}>
                 <AlertCircle size={15} color="#dc2626" style={{ flexShrink: 0, marginTop: "1px" }} />
@@ -281,7 +263,6 @@ export default function UploadPage() {
               </div>
             )}
 
-            {/* AI result */}
             {result && (
               <div style={{ marginTop: "16px", borderRadius: "8px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
                 <div style={{ padding: "12px 16px", backgroundColor: "#f8fafc", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -302,6 +283,7 @@ export default function UploadPage() {
         </div>
       </main>
 
+      {/* Keyframe animation for the loading spinner — can't live in a style prop */}
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );

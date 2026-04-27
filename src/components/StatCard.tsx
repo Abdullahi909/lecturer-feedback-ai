@@ -1,30 +1,15 @@
 import { LucideIcon } from "lucide-react";
 
-/**
- * Props for StatCard.
- *
- * @property label     - The metric name displayed above the value (e.g. "Pending Feedback")
- * @property value     - The numeric or string value to display prominently
- * @property icon      - A Lucide icon component rendered in the coloured badge
- * @property iconColor - Hex colour for the icon stroke
- * @property iconBg    - Hex colour for the icon badge background
- * @property note      - Optional small caption below the value (e.g. "This term")
- */
 type Props = {
   label: string;
   value: string | number;
   icon: LucideIcon;
-  iconColor: string;
-  iconBg: string;
-  note?: string;
+  iconColor: string; // hex — icon stroke colour
+  iconBg: string;   // hex — icon badge background
+  note?: string;    // optional small caption below the value
 };
 
-/**
- * StatCard
- *
- * A reusable card for displaying a single metric on the dashboard and approved
- * pages. Renders an icon badge on the left and the label/value/note on the right.
- */
+// Reusable metric card used on the dashboard and approved pages
 export default function StatCard({ label, value, icon: Icon, iconColor, iconBg, note }: Props) {
   return (
     <div
