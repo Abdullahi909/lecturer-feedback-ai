@@ -1,61 +1,37 @@
+"use client";
+
+// Dashboard — the first page a lecturer sees after logging in.
+// Shows a summary of pending feedback, completed work, active modules, and total students.
+// Also has a table of recent assignments with their current status.
+
 import Sidebar from "@/components/Sidebar";
 import StatCard from "@/components/StatCard";
-import {
-  Clock,
-  CheckCircle,
-  BookOpen,
-  Users,
-  ChevronRight,
-  AlertCircle,
-} from "lucide-react";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { Clock, CheckCircle, BookOpen, Users, ChevronRight, AlertCircle } from "lucide-react";
 import Link from "next/link";
 
+// Demo data for the assignments table.
+// In a real app, this would come from a database query.
 const recentAssignments = [
-  {
-    id: 1,
-    module: "CS201",
-    name: "Essay 1 — Critical Analysis",
-    submissions: 45,
-    pending: 45,
-    deadline: "14 Mar 2026",
-    status: "pending",
-  },
-  {
-    id: 2,
-    module: "CS310",
-    name: "Lab Report 2",
-    submissions: 38,
-    pending: 12,
-    deadline: "10 Mar 2026",
-    status: "in-progress",
-  },
-  {
-    id: 3,
-    module: "CS101",
-    name: "Introductory Essay",
-    submissions: 62,
-    pending: 0,
-    deadline: "28 Feb 2026",
-    status: "done",
-  },
-  {
-    id: 4,
-    module: "CS415",
-    name: "Research Proposal",
-    submissions: 29,
-    pending: 29,
-    deadline: "20 Mar 2026",
-    status: "pending",
-  },
+  { id: 1, module: "CS201", name: "Essay 1 — Critical Analysis",  submissions: 45, pending: 45, deadline: "14 Mar 2026", status: "pending"     },
+  { id: 2, module: "CS310", name: "Lab Report 2",                  submissions: 38, pending: 12, deadline: "10 Mar 2026", status: "in-progress" },
+  { id: 3, module: "CS101", name: "Introductory Essay",            submissions: 62, pending: 0,  deadline: "28 Feb 2026", status: "done"        },
+  { id: 4, module: "CS415", name: "Research Proposal",             submissions: 29, pending: 29, deadline: "20 Mar 2026", status: "pending"     },
 ];
 
+// Colours for each status badge in the table.
 const statusConfig: Record<string, { label: string; color: string; bg: string }> = {
-  pending: { label: "Pending", color: "#d97706", bg: "#fef3c7" },
+  pending:       { label: "Pending",     color: "#d97706", bg: "#fef3c7" },
   "in-progress": { label: "In Progress", color: "#2563eb", bg: "#dbeafe" },
-  done: { label: "Done", color: "#16a34a", bg: "#dcfce7" },
+  done:          { label: "Done",        color: "#16a34a", bg: "#dcfce7" },
 };
 
 export default function DashboardPage() {
+  // Only lecturers can view this page.
+  // If no one is logged in, or a student is logged in, they get redirected.
+  const { user, loading } = useAuthGuard("lecturer");
+
+  // Format today's date nicely for the greeting, e.g. "Monday, 14 March 2026".
   const today = new Date().toLocaleDateString("en-GB", {
     weekday: "long",
     day: "numeric",
@@ -63,22 +39,28 @@ export default function DashboardPage() {
     year: "numeric",
   });
 
+  // Don't render the page until we know the user is valid.
+  // This prevents a brief flash of content before the redirect happens.
+  if (loading || !user) return null;
+
+  // Use only the lecturer's first name in the greeting, e.g. "Good morning, Abdullahi".
+  const firstName = user.name.split(" ")[0];
+
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
       <Sidebar />
 
       <main style={{ flex: 1, padding: "32px", overflowY: "auto" }}>
-        {/* Header */}
+
+        {/* Page heading with the lecturer's name and today's date */}
         <div style={{ marginBottom: "28px" }}>
           <h1 style={{ fontSize: "22px", fontWeight: "700", color: "#1e293b" }}>
-            Good morning, Dr. Mitchell
+            Good morning, {firstName}
           </h1>
-          <p style={{ fontSize: "14px", color: "#64748b", marginTop: "4px" }}>
-            {today}
-          </p>
+          <p style={{ fontSize: "14px", color: "#64748b", marginTop: "4px" }}>{today}</p>
         </div>
 
-        {/* Alert banner */}
+        {/* Urgent banner — reminds the lecturer about upcoming deadlines */}
         <div
           style={{
             backgroundColor: "#eff6ff",
@@ -98,76 +80,21 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* Stat cards */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            gap: "16px",
-            marginBottom: "32px",
-          }}
-        >
-          <StatCard
-            label="Pending Feedback"
-            value={74}
-            icon={Clock}
-            iconColor="#d97706"
-            iconBg="#fef3c7"
-            note="Across 2 modules"
-          />
-          <StatCard
-            label="Completed"
-            value={62}
-            icon={CheckCircle}
-            iconColor="#16a34a"
-            iconBg="#dcfce7"
-            note="This term"
-          />
-          <StatCard
-            label="Active Modules"
-            value={4}
-            icon={BookOpen}
-            iconColor="#2563eb"
-            iconBg="#dbeafe"
-          />
-          <StatCard
-            label="Total Students"
-            value={174}
-            icon={Users}
-            iconColor="#7c3aed"
-            iconBg="#ede9fe"
-          />
+        {/* Summary stat cards — four quick numbers at a glance */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px", marginBottom: "32px" }}>
+          <StatCard label="Pending Feedback" value={74}  icon={Clock}       iconColor="#d97706" iconBg="#fef3c7"  note="Across 2 modules" />
+          <StatCard label="Completed"         value={62}  icon={CheckCircle} iconColor="#16a34a" iconBg="#dcfce7"  note="This term"        />
+          <StatCard label="Active Modules"    value={4}   icon={BookOpen}    iconColor="#2563eb" iconBg="#dbeafe"                           />
+          <StatCard label="Total Students"    value={174} icon={Users}       iconColor="#7c3aed" iconBg="#ede9fe"                           />
         </div>
 
-        {/* Recent assignments */}
-        <div
-          style={{
-            backgroundColor: "#ffffff",
-            borderRadius: "10px",
-            border: "1px solid #e2e8f0",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "18px 20px",
-              borderBottom: "1px solid #f1f5f9",
-            }}
-          >
-            <h2 style={{ fontSize: "15px", fontWeight: "600", color: "#1e293b" }}>
-              Recent Assignments
-            </h2>
-            <Link
-              href="/upload"
-              style={{
-                fontSize: "13px",
-                color: "#3b82f6",
-                textDecoration: "none",
-                fontWeight: "500",
-              }}
-            >
+        {/* Recent assignments table */}
+        <div style={{ backgroundColor: "#ffffff", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
+
+          {/* Table header row with title and a link to add a new assignment */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 20px", borderBottom: "1px solid #f1f5f9" }}>
+            <h2 style={{ fontSize: "15px", fontWeight: "600", color: "#1e293b" }}>Recent Assignments</h2>
+            <Link href="/upload" style={{ fontSize: "13px", color: "#3b82f6", textDecoration: "none", fontWeight: "500" }}>
               + New Assignment
             </Link>
           </div>
@@ -175,89 +102,50 @@ export default function DashboardPage() {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ backgroundColor: "#f8fafc" }}>
-                {["Module", "Assignment", "Submissions", "Pending", "Deadline", "Status", ""].map(
-                  (h) => (
-                    <th
-                      key={h}
-                      style={{
-                        padding: "12px 20px",
-                        textAlign: "left",
-                        fontSize: "12px",
-                        fontWeight: "600",
-                        color: "#64748b",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.05em",
-                      }}
-                    >
-                      {h}
-                    </th>
-                  )
-                )}
+                {["Module", "Assignment", "Submissions", "Pending", "Deadline", "Status", ""].map((heading) => (
+                  <th
+                    key={heading}
+                    style={{
+                      padding: "12px 20px",
+                      textAlign: "left",
+                      fontSize: "12px",
+                      fontWeight: "600",
+                      color: "#64748b",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                    }}
+                  >
+                    {heading}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {recentAssignments.map((a, i) => {
-                const s = statusConfig[a.status];
+              {recentAssignments.map((assignment, index) => {
+                // Get the colour config for this row's status badge.
+                const statusStyle = statusConfig[assignment.status];
+
                 return (
-                  <tr
-                    key={a.id}
-                    style={{
-                      borderTop: i === 0 ? "none" : "1px solid #f1f5f9",
-                    }}
-                  >
+                  <tr key={assignment.id} style={{ borderTop: index === 0 ? "none" : "1px solid #f1f5f9" }}>
+                    {/* Module code pill */}
                     <td style={{ padding: "14px 20px" }}>
-                      <span
-                        style={{
-                          fontSize: "12px",
-                          fontWeight: "600",
-                          color: "#3b82f6",
-                          backgroundColor: "#eff6ff",
-                          padding: "3px 8px",
-                          borderRadius: "4px",
-                        }}
-                      >
-                        {a.module}
+                      <span style={{ fontSize: "12px", fontWeight: "600", color: "#3b82f6", backgroundColor: "#eff6ff", padding: "3px 8px", borderRadius: "4px" }}>
+                        {assignment.module}
                       </span>
                     </td>
-                    <td style={{ padding: "14px 20px", fontSize: "14px", color: "#1e293b" }}>
-                      {a.name}
-                    </td>
-                    <td style={{ padding: "14px 20px", fontSize: "14px", color: "#475569" }}>
-                      {a.submissions}
-                    </td>
-                    <td style={{ padding: "14px 20px", fontSize: "14px", color: "#475569" }}>
-                      {a.pending}
-                    </td>
-                    <td style={{ padding: "14px 20px", fontSize: "13px", color: "#64748b" }}>
-                      {a.deadline}
-                    </td>
+                    <td style={{ padding: "14px 20px", fontSize: "14px", color: "#1e293b" }}>{assignment.name}</td>
+                    <td style={{ padding: "14px 20px", fontSize: "14px", color: "#475569" }}>{assignment.submissions}</td>
+                    <td style={{ padding: "14px 20px", fontSize: "14px", color: "#475569" }}>{assignment.pending}</td>
+                    <td style={{ padding: "14px 20px", fontSize: "13px", color: "#64748b" }}>{assignment.deadline}</td>
+                    {/* Status badge */}
                     <td style={{ padding: "14px 20px" }}>
-                      <span
-                        style={{
-                          fontSize: "12px",
-                          fontWeight: "500",
-                          color: s.color,
-                          backgroundColor: s.bg,
-                          padding: "3px 10px",
-                          borderRadius: "20px",
-                        }}
-                      >
-                        {s.label}
+                      <span style={{ fontSize: "12px", fontWeight: "500", color: statusStyle.color, backgroundColor: statusStyle.bg, padding: "3px 10px", borderRadius: "20px" }}>
+                        {statusStyle.label}
                       </span>
                     </td>
+                    {/* "Review" link that goes to the feedback page */}
                     <td style={{ padding: "14px 20px" }}>
-                      <Link
-                        href="/feedback"
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "4px",
-                          fontSize: "13px",
-                          color: "#3b82f6",
-                          textDecoration: "none",
-                          fontWeight: "500",
-                        }}
-                      >
+                      <Link href="/feedback" style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "13px", color: "#3b82f6", textDecoration: "none", fontWeight: "500" }}>
                         Review <ChevronRight size={14} />
                       </Link>
                     </td>
