@@ -1,246 +1,147 @@
 # FeedbackAI — Lecturer Portal
 
-An AI-powered feedback management system for university lecturers. Upload student assignments, generate structured AI feedback using Anthropic Claude, review and approve drafts, then dispatch to students — all from a single web portal.
+FeedbackAI is a Next.js app for managing AI-generated student feedback. A lecturer can upload a student submission, generate feedback with Anthropic Claude, review and edit the result, approve it, and then the student can view the approved feedback in their portal.
 
----
+## What The App Does
 
-## Features
-
-- **Role-based login** — Separate lecturer and student experiences
-- **Assignment upload** — Drag-and-drop file upload with module and deadline configuration
-- **AI feedback generation** — Claude generates structured, criterion-weighted feedback in seconds
-- **Review workflow** — Approve, reject, or edit every piece of feedback before students see it
-- **Student portal** — Students log in to view their assignments and received feedback
-- **Dashboard** — At-a-glance stats for pending feedback, completions, active modules and students
-- **Settings** — Profile management and notification preferences
-
----
+- Lecturer login and student login
+- Supabase-backed data for users, modules, and submissions
+- Upload `.pdf`, `.docx`, and `.txt` files
+- Extract text from uploaded files before sending work to the AI
+- Generate feedback and a suggested grade with Anthropic Claude
+- Save generated feedback to the review queue
+- Review, edit, approve, or reject feedback
+- Show approved feedback to the correct student
+- Keep simple lecturer settings in `localStorage`
 
 ## Tech Stack
 
 | Layer | Technology |
 |---|---|
 | Framework | Next.js 16 (App Router) |
-| Language | TypeScript 5 |
-| Styling | Tailwind CSS 4 + React inline styles |
-| AI Model | Anthropic Claude (`claude-haiku-4-5-20251001`) |
+| Language | TypeScript |
+| Styling | Tailwind CSS 4 + inline styles |
+| Database | Supabase REST API |
+| AI | Anthropic Claude |
+| File Parsing | `pdf-parse`, `mammoth` |
 | Icons | Lucide React |
-| Auth | localStorage session (prototype) |
-| Deployment | Vercel |
 
----
+## Demo Accounts
 
-## Getting Started
+These work after you run the SQL seed file:
 
-### Prerequisites
-
-- Node.js 18 or higher
-- npm
-
-### Installation
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/Abdullahi909/lecturer-feedback-ai.git
-cd lecturer-feedback-ai
-
-# 2. Install dependencies
-npm install
-
-# 3. Create your local environment file and add your Anthropic API key
-echo "ANTHROPIC_API_KEY=your_key_here" > .env.local
-
-# 4. Start the development server
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
----
-
-## Environment Variables
-
-Create a `.env.local` file in the project root:
-
-```env
-ANTHROPIC_API_KEY=your_anthropic_api_key_here
-```
-
-| Variable | Description | Required |
+| Role | Username | Password |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Anthropic API key for Claude | Yes |
-
-> `.env.local` is listed in `.gitignore` and will never be committed to the repository.
-
-For production, add the variable in **Vercel Dashboard → Project → Settings → Environment Variables**.
-
----
-
-## Demo Credentials
-
-| Role | Username | Password | Redirects to |
-|---|---|---|---|
-| Lecturer | `abdullahi` | `password` | `/dashboard` |
-| Student | `abdulali` | `password` | `/student` |
-
----
+| Lecturer | `abdullahi` | `password` |
+| Student | `abdulali` | `password` |
 
 ## Project Structure
 
-```
+```text
 lecturer-feedback-ai/
 ├── src/
 │   ├── app/
 │   │   ├── api/
-│   │   │   └── generate-feedback/
-│   │   │       └── route.ts        # POST — AI feedback generation endpoint
-│   │   ├── approved/
-│   │   │   └── page.tsx            # Approved submissions table
-│   │   ├── dashboard/
-│   │   │   └── page.tsx            # Lecturer dashboard with stats
-│   │   ├── feedback/
-│   │   │   └── page.tsx            # Split-panel feedback review UI
-│   │   ├── login/
-│   │   │   └── page.tsx            # Login page (lecturer + student)
-│   │   ├── settings/
-│   │   │   └── page.tsx            # Profile and notification settings
-│   │   ├── student/
-│   │   │   └── page.tsx            # Student view — assignments and feedback
-│   │   ├── upload/
-│   │   │   └── page.tsx            # Upload assignments + generate feedback
-│   │   ├── globals.css             # Global styles and Tailwind import
-│   │   ├── layout.tsx              # Root layout with metadata
-│   │   └── page.tsx                # Root redirect → /login
+│   │   │   ├── generate-feedback/route.ts
+│   │   │   └── login/route.ts
+│   │   ├── approved/page.tsx
+│   │   ├── dashboard/page.tsx
+│   │   ├── feedback/page.tsx
+│   │   ├── login/page.tsx
+│   │   ├── settings/page.tsx
+│   │   ├── student/page.tsx
+│   │   ├── upload/page.tsx
+│   │   ├── globals.css
+│   │   ├── layout.tsx
+│   │   └── page.tsx
 │   ├── components/
-│   │   ├── Sidebar.tsx             # Persistent navigation sidebar (lecturer)
-│   │   └── StatCard.tsx            # Reusable metric display card
-│   └── hooks/
-│       └── useAuthGuard.ts         # Auth guard hook — reads localStorage, redirects
-├── .env.local                      # Local environment variables (not committed)
-├── .gitignore
-├── next.config.ts
-├── package.json
-└── tsconfig.json
+│   │   ├── Sidebar.tsx
+│   │   └── StatCard.tsx
+│   ├── hooks/
+│   │   └── useAuthGuard.ts
+│   └── lib/
+│       ├── auth.ts
+│       ├── supabase.ts
+│       └── types.ts
+├── supabase-setup.sql
+├── .env.example
+└── README.md
 ```
 
----
+## Setup
 
-## Pages
+### 1. Install packages
 
-### `/login`
-Entry point for all users. Checks credentials against hardcoded users and stores the authenticated user object in `localStorage`. Redirects to `/dashboard` (lecturer) or `/student` (student).
-
-### `/dashboard`
-Lecturer home page. Displays summary statistics (pending feedback, completions, active modules, total students) and a table of recent assignments with their status and quick links to the feedback review page.
-
-### `/upload`
-Upload student submissions and configure the assessment. The lecturer selects a module, names the assignment, sets a deadline, and uploads files via drag-and-drop. Clicking **Generate Feedback** calls the AI API and displays a draft grade and feedback in-page.
-
-### `/feedback`
-Split-panel review interface. The left panel lists all student submissions filterable by module and status. The right panel shows the selected student's AI-generated feedback, suggested grade, and action buttons to **Approve & Send**, **Reject**, or **Edit**.
-
-### `/approved`
-Table of all approved submissions with grade badges and dispatch confirmations. Shows summary stats at the top (total approved, sent count, average grade).
-
-### `/settings`
-Profile settings (name, title, email, department) and notification preferences with toggle switches.
-
-### `/student`
-Student-facing view showing submitted assignments with status indicators. Approved feedback and grades are displayed in full; pending submissions show a holding message.
-
----
-
-## AI Grading System
-
-Feedback is generated by `claude-haiku-4-5-20251001` — Anthropic's fast, cost-efficient model suited for structured text generation.
-
-### Grading Scale (UK Higher Education)
-
-| Grade | Percentage | Classification |
-|---|---|---|
-| A | 70%+ | Distinction |
-| B+ | 65–69% | Merit+ |
-| B | 60–64% | Merit |
-| B- | 55–59% | Satisfactory |
-| C+ | 52–54% | Adequate |
-| C | 50–51% | Pass |
-| D | 40–49% | Marginal Fail |
-| F | Below 40% | Fail |
-
-### Feedback Structure
-
-Every generated feedback follows a consistent 3–4 paragraph structure:
-
-1. **Overall assessment** — Quality summary and whether learning outcomes are met
-2. **Strengths** — 2–3 specific strengths tied to the weighted criteria
-3. **Areas for improvement** — 2–3 actionable suggestions for future work
-4. **Grade justification** — Explanation of the grade relative to criteria weights
-
-### Tone Options
-
-| Tone | Description |
-|---|---|
-| Constructive | Balanced and developmental |
-| Direct | Clear and unambiguous |
-| Encouraging | Supportive, highlighting potential |
-
----
-
-## Feedback Workflow
-
-```
-Lecturer uploads files
-        ↓
-Configures module, criteria, and tone
-        ↓
-Clicks "Generate Feedback" → POST /api/generate-feedback
-        ↓
-Claude returns draft feedback + suggested grade
-        ↓
-Lecturer reviews on /feedback
-        ↓
-  ┌─────┴─────┐
-Approve     Reject
-  ↓
-Feedback visible on student's /student page
+```bash
+npm install
 ```
 
----
+### 2. Create `.env.local`
 
-## Authentication
+Use `.env.example` as the template:
 
-Authentication uses `localStorage` to persist a session object:
-
-```ts
-type StoredUser = {
-  name: string;
-  initials: string;
-  role: "lecturer" | "student";
-};
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_public_anon_key
+ANTHROPIC_API_KEY=your_anthropic_api_key
 ```
 
-The `useAuthGuard` hook runs on mount in every protected page. If no user is found in `localStorage`, or the role does not match, the user is redirected to `/login`.
+### 3. Run the Supabase SQL file
 
-> For a production system this should be replaced with a proper auth provider (e.g. NextAuth, Clerk, or Supabase Auth) with server-side session validation.
+Open your Supabase SQL editor and run:
 
----
+```sql
+-- file in repo root
+supabase-setup.sql
+```
+
+This creates:
+- `users`
+- `modules`
+- `submissions`
+
+It also seeds the demo lecturer, students, modules, and submission data.
+
+### 4. Start the app
+
+```bash
+npm run dev
+```
+
+Open:
+
+```text
+http://localhost:3000
+```
+
+## Verification Commands
+
+```bash
+npx tsc --noEmit
+npm run build
+```
+
+## Current Workflow
+
+1. Lecturer signs in
+2. Lecturer chooses a student and module
+3. Lecturer uploads one or more `.pdf`, `.docx`, or `.txt` files
+4. Server extracts text from the uploaded files
+5. Claude generates feedback and a grade
+6. The result is saved to Supabase as a pending submission
+7. Lecturer reviews and approves or rejects the feedback
+8. Approved feedback appears on the student page
+
+## Important Notes
+
+- Authentication is still demo-style and uses simple stored passwords in Supabase.
+- Settings are still stored in `localStorage`.
+- File parsing is simple plain-text extraction, not full document layout analysis.
+- `.env.local` is intentionally not committed.
 
 ## Deployment
 
-The project is deployed on Vercel via GitHub integration.
-
-```bash
-# Push to main → Vercel auto-deploys to production
-git push origin main
-```
-
-**Required Vercel setup:**
-1. Import the GitHub repository on [vercel.com](https://vercel.com)
-2. Go to **Project → Settings → Environment Variables**
-3. Add `ANTHROPIC_API_KEY` for Production, Preview, and Development
-4. Redeploy to apply
-
----
+Push to `main` and deploy on Vercel after adding the same environment variables there.
 
 ## Licence
 
