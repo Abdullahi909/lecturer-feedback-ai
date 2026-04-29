@@ -7,8 +7,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { LayoutDashboard, Upload, FileText, CheckSquare, Settings, LogOut } from "lucide-react";
-
-const STORAGE_KEY = "feedbackai_user";
+import { clearStoredUser, readStoredUser } from "@/lib/auth";
 
 // Nav links — label, URL path, and icon for each page.
 const navItems = [
@@ -29,16 +28,16 @@ export default function Sidebar() {
   useEffect(() => {
     // Read the logged-in user's info from localStorage.
     // Must be inside useEffect — localStorage doesn't exist during server rendering.
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      const parsed = JSON.parse(saved);
+    const parsed = readStoredUser();
+
+    if (parsed) {
       setUserName(parsed.name ?? "");
       setUserInitials(parsed.initials ?? "?");
     }
   }, []);
 
   function handleLogout() {
-    localStorage.removeItem(STORAGE_KEY);
+    clearStoredUser();
     router.push("/login");
   }
 

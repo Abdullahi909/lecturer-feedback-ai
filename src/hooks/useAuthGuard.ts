@@ -8,15 +8,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-
-// The shape of the user object saved in localStorage after login.
-export type StoredUser = {
-  name: string;     // e.g. "Abdullahi Mohamed"
-  initials: string; // e.g. "AM"
-  role: "lecturer" | "student";
-};
-
-const STORAGE_KEY = "feedbackai_user";
+import { readStoredUser } from "@/lib/auth";
+import type { StoredUser } from "@/lib/types";
 
 export function useAuthGuard(requiredRole: "lecturer" | "student") {
   const [user,    setUser]    = useState<StoredUser | null>(null);
@@ -26,15 +19,13 @@ export function useAuthGuard(requiredRole: "lecturer" | "student") {
   useEffect(() => {
     // localStorage is only available in the browser, not during server rendering.
     // useEffect only runs in the browser, so it is safe to read here.
-    const saved = localStorage.getItem(STORAGE_KEY);
+    const parsed = readStoredUser();
 
-    if (!saved) {
+    if (!parsed) {
       // No one is logged in — go to the login page.
       router.replace("/login");
       return;
     }
-
-    const parsed = JSON.parse(saved) as StoredUser;
 
     if (parsed.role !== requiredRole) {
       // The logged-in user has the wrong role — send them to their own page.

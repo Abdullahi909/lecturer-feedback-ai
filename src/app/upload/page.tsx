@@ -1,98 +1,148 @@
 "use client";
 
-// Upload page — the lecturer configures an assignment, adds files, and generates AI feedback.
-// Clicking "Generate Feedback" calls our API route which talks to Claude.
+// Upload page.
+// This version sends the real uploaded files to the API route.
 
 import Sidebar from "@/components/Sidebar";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { createSubmission, fetchModules, fetchUsers } from "@/lib/supabase";
+import type { DatabaseModule, PublicUser } from "@/lib/types";
 import { Upload, FileText, X, Info, Loader2, CheckCircle, AlertCircle } from "lucide-react";
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
-const modules = [
-  { code: "CS101", name: "Introduction to Computing" },
-  { code: "CS201", name: "Data Structures & Algorithms" },
-  { code: "CS310", name: "Software Engineering" },
-  { code: "CS415", name: "Machine Learning" },
-];
-
-// Assessment criteria sent to the AI with every feedback request.
 const criteria = [
-  { label: "Critical Analysis",   weight: 30 },
+  { label: "Critical Analysis", weight: 30 },
   { label: "Structure & Clarity", weight: 25 },
-  { label: "Use of Sources",      weight: 25 },
-  { label: "Originality",         weight: 20 },
+  { label: "Use of Sources", weight: 25 },
+  { label: "Originality", weight: 20 },
 ];
 
 export default function UploadPage() {
   const { user, loading } = useAuthGuard("lecturer");
-
-  // Assignment form fields.
-  const [selectedModule, setSelectedModule] = useState("");
+  const [selectedStudentId, setSelectedStudentId] = useState("");
+  const [selectedModuleId, setSelectedModuleId] = useState("");
   const [assignmentName, setAssignmentName] = useState("");
-  const [deadline,       setDeadline]       = useState("");
-  const [tone,           setTone]           = useState("Constructive");
-
-  // Uploaded files shown in the list below the drop zone.
-  const [files,    setFiles]    = useState<{ name: string; size: string }[]>([]);
+  const [deadline, setDeadline] = useState("");
+  const [tone, setTone] = useState("Constructive");
+  const [students, setStudents] = useState<PublicUser[]>([]);
+  const [modules, setModules] = useState<DatabaseModule[]>([]);
+  const [files, setFiles] = useState<File[]>([]);
   const [dragOver, setDragOver] = useState(false);
-
-  // AI result and loading/error states.
+  const [pageLoading, setPageLoading] = useState(true);
+  const [pageError, setPageError] = useState("");
   const [generating, setGenerating] = useState(false);
-  const [result,     setResult]     = useState<{ feedback: string; grade: string } | null>(null);
-  const [apiError,   setApiError]   = useState("");
-
-  // Hidden file input element — clicked programmatically when the drop zone is clicked.
+  const [saving, setSaving] = useState(false);
+  const [result, setResult] = useState<{ feedback: string; grade: string } | null>(null);
+  const [apiError, setApiError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    async function loadFormData() {
+      try {
+        const [studentRows, moduleRows] = await Promise.all([
+          fetchUsers("student"),
+          fetchModules(),
+        ]);
+
+        setStudents(studentRows);
+        setModules(moduleRows);
+
+        if (studentRows[0]) {
+          setSelectedStudentId(studentRows[0].id);
+        }
+
+        if (moduleRows[0]) {
+          setSelectedModuleId(moduleRows[0].id);
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Could not load form data.";
+        setPageError(message);
+      } finally {
+        setPageLoading(false);
+      }
+    }
+
+    loadFormData();
+  }, []);
 
   if (loading || !user) return null;
 
-  // Convert bytes to a readable string like "1.2 MB".
   function formatSize(bytes: number): string {
-    if (bytes < 1024)        return `${bytes} B`;
+    if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
-  // Add new files to the list.
   function addFiles(fileList: FileList) {
-    const newFiles = Array.from(fileList).map((f) => ({ name: f.name, size: formatSize(f.size) }));
-    setFiles((prev) => [...prev, ...newFiles]);
+    const newFiles = Array.from(fileList);
+    setFiles((current) => [...current, ...newFiles]);
   }
 
   function removeFile(index: number) {
-    setFiles((prev) => prev.filter((_, i) => i !== index));
+    setFiles((current) => current.filter((_, itemIndex) => itemIndex !== index));
   }
 
-  // Send the assignment details to the AI and show the result.
   async function handleGenerate() {
     setGenerating(true);
+    setSaving(false);
     setResult(null);
     setApiError("");
+    setSuccessMessage("");
 
     try {
-      const res = await fetch("/api/generate-feedback", {
+      const student = students.find((item) => item.id === selectedStudentId);
+      const module = modules.find((item) => item.id === selectedModuleId);
+      const formData = new FormData();
+
+      // Send the simple text fields first.
+      formData.append("studentName", student?.name ?? "Sample Student");
+      formData.append("module", module?.code ?? "General");
+      formData.append("assignment", assignmentName || "Assignment");
+      formData.append("criteria", criteria.map((item) => `${item.label} (${item.weight}%)`).join(", "));
+      formData.append("tone", tone);
+
+      // Then send the uploaded files themselves.
+      for (const file of files) {
+        formData.append("files", file);
+      }
+
+      const response = await fetch("/api/generate-feedback", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          studentName: "Sample Student", // Would come from the uploaded file in production.
-          module:   selectedModule || "General",
-          assignment: assignmentName || "Assignment",
-          criteria: criteria.map((c) => `${c.label} (${c.weight}%)`).join(", "),
-          tone,
-        }),
+        body: formData,
       });
 
-      const data = await res.json();
+      const data = await response.json();
 
-      if (!res.ok) {
+      if (!response.ok) {
         setApiError(data.error || "Something went wrong. Please try again.");
-      } else {
-        setResult(data);
+        setGenerating(false);
+        return;
       }
-    } catch {
-      setApiError("Network error. Please check your connection and try again.");
+
+      setResult(data);
+      setGenerating(false);
+      setSaving(true);
+
+      await createSubmission({
+        student_id: selectedStudentId,
+        module_id: selectedModuleId,
+        assignment: assignmentName || "Assignment",
+        submitted_date: deadline || new Date().toISOString().slice(0, 10),
+        status: "pending",
+        feedback: data.feedback,
+        grade: data.grade,
+      });
+
+      setSuccessMessage("Feedback generated and saved to the review queue.");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Could not generate feedback.";
+      setApiError(message);
     } finally {
       setGenerating(false);
+      setSaving(false);
     }
   }
 
@@ -108,64 +158,111 @@ export default function UploadPage() {
           </p>
         </div>
 
-        {/* Two-column layout */}
+        {pageLoading && (
+          <div style={{ backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "20px", fontSize: "14px", color: "#475569", marginBottom: "20px" }}>
+            Loading form data...
+          </div>
+        )}
+
+        {pageError && (
+          <div style={{ backgroundColor: "#fef2f2", borderRadius: "10px", border: "1px solid #fecaca", padding: "20px", fontSize: "14px", color: "#b91c1c", marginBottom: "20px" }}>
+            {pageError}
+          </div>
+        )}
+
         <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: "24px", alignItems: "start" }}>
-
-          {/* LEFT — assignment details + file upload */}
           <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-
-            {/* Assignment details */}
             <div style={{ backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "24px" }}>
               <h2 style={{ fontSize: "15px", fontWeight: "600", color: "#1e293b", marginBottom: "20px" }}>Assignment Details</h2>
+
               <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                 <div>
-                  <label style={{ display: "block", fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "6px" }}>Module</label>
-                  <select value={selectedModule} onChange={(e) => setSelectedModule(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #d1d5db", fontSize: "14px", color: "#1e293b", backgroundColor: "#fff", outline: "none" }}>
-                    <option value="">Select a module...</option>
-                    {modules.map((m) => <option key={m.code} value={m.code}>{m.code} — {m.name}</option>)}
+                  <label style={{ display: "block", fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "6px" }}>Student</label>
+                  <select value={selectedStudentId} onChange={(e) => setSelectedStudentId(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #d1d5db", fontSize: "14px", color: "#1e293b", backgroundColor: "#fff", outline: "none" }}>
+                    {students.map((student) => (
+                      <option key={student.id} value={student.id}>
+                        {student.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "6px" }}>Module</label>
+                  <select value={selectedModuleId} onChange={(e) => setSelectedModuleId(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #d1d5db", fontSize: "14px", color: "#1e293b", backgroundColor: "#fff", outline: "none" }}>
+                    {modules.map((module) => (
+                      <option key={module.id} value={module.id}>
+                        {module.code} - {module.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div>
                   <label style={{ display: "block", fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "6px" }}>Assignment Name</label>
-                  <input type="text" value={assignmentName} onChange={(e) => setAssignmentName(e.target.value)} placeholder="e.g. Essay 1 — Critical Analysis" style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #d1d5db", fontSize: "14px", color: "#1e293b", outline: "none" }} />
+                  <input value={assignmentName} onChange={(e) => setAssignmentName(e.target.value)} placeholder="e.g. Essay 1" style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #d1d5db", fontSize: "14px", color: "#1e293b", outline: "none", boxSizing: "border-box" }} />
                 </div>
+
                 <div>
-                  <label style={{ display: "block", fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "6px" }}>Feedback Deadline</label>
-                  <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #d1d5db", fontSize: "14px", color: "#1e293b", outline: "none" }} />
+                  <label style={{ display: "block", fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "6px" }}>Submission Date</label>
+                  <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #d1d5db", fontSize: "14px", color: "#1e293b", outline: "none", boxSizing: "border-box" }} />
                 </div>
               </div>
             </div>
 
-            {/* File upload */}
             <div style={{ backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "24px" }}>
-              <h2 style={{ fontSize: "15px", fontWeight: "600", color: "#1e293b", marginBottom: "20px" }}>Student Submissions</h2>
+              <h2 style={{ fontSize: "15px", fontWeight: "600", color: "#1e293b", marginBottom: "18px" }}>Student Files</h2>
 
-              {/* Drop zone — changes colour when a file is dragged over */}
               <div
-                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={(e) => { e.preventDefault(); setDragOver(false); if (e.dataTransfer.files) addFiles(e.dataTransfer.files); }}
                 onClick={() => fileInput.current?.click()}
-                style={{ border: `2px dashed ${dragOver ? "#3b82f6" : "#cbd5e1"}`, borderRadius: "10px", backgroundColor: dragOver ? "#eff6ff" : "#f8fafc", padding: "40px 24px", textAlign: "center", cursor: "pointer", transition: "all 0.15s ease", marginBottom: files.length > 0 ? "16px" : "0" }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOver(true);
+                }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOver(false);
+                  if (e.dataTransfer.files.length > 0) {
+                    addFiles(e.dataTransfer.files);
+                  }
+                }}
+                style={{ border: `2px dashed ${dragOver ? "#3b82f6" : "#cbd5e1"}`, borderRadius: "12px", padding: "30px 20px", textAlign: "center", backgroundColor: dragOver ? "#eff6ff" : "#f8fafc", cursor: "pointer", transition: "all 0.15s ease" }}
               >
-                <Upload size={28} color={dragOver ? "#3b82f6" : "#94a3b8"} style={{ margin: "0 auto 12px" }} />
-                <p style={{ fontSize: "14px", fontWeight: "500", color: "#475569" }}>Drag and drop files here</p>
-                <p style={{ fontSize: "13px", color: "#94a3b8", marginTop: "4px" }}>
-                  or <span style={{ color: "#3b82f6", fontWeight: "500" }}>browse to upload</span>
-                </p>
-                <p style={{ fontSize: "12px", color: "#cbd5e1", marginTop: "8px" }}>Accepts PDF, DOCX, TXT — up to 10 MB each</p>
-                <input ref={fileInput} type="file" multiple accept=".pdf,.docx,.txt" style={{ display: "none" }} onChange={(e) => { if (e.target.files) addFiles(e.target.files); }} />
+                <div style={{ display: "flex", justifyContent: "center", marginBottom: "10px" }}>
+                  <div style={{ width: "48px", height: "48px", borderRadius: "50%", backgroundColor: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Upload size={20} color="#2563eb" />
+                  </div>
+                </div>
+
+                <p style={{ fontSize: "14px", fontWeight: "600", color: "#1e293b" }}>Drag and drop files here</p>
+                <p style={{ fontSize: "13px", color: "#64748b", marginTop: "4px" }}>or click to choose files</p>
+                <p style={{ fontSize: "12px", color: "#94a3b8", marginTop: "10px" }}>Accepted: .pdf, .docx, .txt</p>
               </div>
 
-              {/* File list */}
+              <input
+                ref={fileInput}
+                type="file"
+                multiple
+                accept=".pdf,.docx,.txt"
+                onChange={(e) => {
+                  if (e.target.files) {
+                    addFiles(e.target.files);
+                  }
+                }}
+                style={{ display: "none" }}
+              />
+
               {files.length > 0 && (
-                <ul style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  {files.map((f, i) => (
-                    <li key={i} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", borderRadius: "8px", border: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
-                      <FileText size={16} color="#3b82f6" />
-                      <span style={{ flex: 1, fontSize: "13px", color: "#1e293b" }}>{f.name}</span>
-                      <span style={{ fontSize: "12px", color: "#94a3b8" }}>{f.size}</span>
-                      <button onClick={() => removeFile(i)} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", display: "flex" }}>
+                <ul style={{ listStyle: "none", margin: "18px 0 0 0", padding: 0, display: "flex", flexDirection: "column", gap: "10px" }}>
+                  {files.map((file, index) => (
+                    <li key={`${file.name}-${index}`} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 14px", borderRadius: "8px", backgroundColor: "#f8fafc", border: "1px solid #e2e8f0" }}>
+                      <FileText size={16} color="#2563eb" />
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: "13px", color: "#1e293b", fontWeight: "500" }}>{file.name}</p>
+                        <p style={{ fontSize: "12px", color: "#94a3b8", marginTop: "2px" }}>{formatSize(file.size)}</p>
+                      </div>
+                      <button onClick={() => removeFile(index)} style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", display: "flex" }}>
                         <X size={14} color="#94a3b8" />
                       </button>
                     </li>
@@ -175,25 +272,23 @@ export default function UploadPage() {
             </div>
           </div>
 
-          {/* RIGHT — criteria + tone + generate button */}
           <div style={{ backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "24px" }}>
             <h2 style={{ fontSize: "15px", fontWeight: "600", color: "#1e293b", marginBottom: "6px" }}>Assessment Criteria</h2>
             <p style={{ fontSize: "13px", color: "#64748b", marginBottom: "20px" }}>Weights sent to the AI when generating feedback.</p>
 
-            {/* Criteria progress bars */}
-            {criteria.map((c) => (
-              <div key={c.label} style={{ marginBottom: "16px" }}>
+            {criteria.map((item) => (
+              <div key={item.label} style={{ marginBottom: "16px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-                  <span style={{ fontSize: "13px", color: "#374151", fontWeight: "500" }}>{c.label}</span>
-                  <span style={{ fontSize: "13px", color: "#64748b" }}>{c.weight}%</span>
+                  <span style={{ fontSize: "13px", color: "#374151", fontWeight: "500" }}>{item.label}</span>
+                  <span style={{ fontSize: "13px", color: "#64748b" }}>{item.weight}%</span>
                 </div>
+
                 <div style={{ height: "6px", backgroundColor: "#f1f5f9", borderRadius: "99px", overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${c.weight}%`, backgroundColor: "#3b82f6", borderRadius: "99px" }} />
+                  <div style={{ height: "100%", width: `${item.weight}%`, backgroundColor: "#3b82f6", borderRadius: "99px" }} />
                 </div>
               </div>
             ))}
 
-            {/* Tone selector */}
             <div style={{ marginTop: "20px" }}>
               <label style={{ display: "block", fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "6px" }}>Feedback Tone</label>
               <select value={tone} onChange={(e) => setTone(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #d1d5db", fontSize: "13px", color: "#1e293b", backgroundColor: "#fff", outline: "none" }}>
@@ -203,7 +298,6 @@ export default function UploadPage() {
               </select>
             </div>
 
-            {/* Info note */}
             <div style={{ marginTop: "16px", backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "8px", padding: "12px", display: "flex", gap: "8px" }}>
               <Info size={14} color="#16a34a" style={{ flexShrink: 0, marginTop: "1px" }} />
               <p style={{ fontSize: "12px", color: "#15803d", lineHeight: "1.5" }}>
@@ -211,17 +305,15 @@ export default function UploadPage() {
               </p>
             </div>
 
-            {/* Generate button */}
             <button
               onClick={handleGenerate}
-              disabled={generating}
-              style={{ width: "100%", marginTop: "16px", padding: "12px", borderRadius: "8px", backgroundColor: generating ? "#475569" : "#1e293b", color: "#fff", fontSize: "14px", fontWeight: "600", border: "none", cursor: generating ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
+              disabled={generating || saving || !selectedStudentId || !selectedModuleId || files.length === 0}
+              style={{ width: "100%", marginTop: "16px", padding: "12px", borderRadius: "8px", backgroundColor: generating || saving ? "#475569" : "#1e293b", color: "#fff", fontSize: "14px", fontWeight: "600", border: "none", cursor: generating || saving ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
             >
-              {generating && <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} />}
-              {generating ? "Generating..." : "Generate Feedback"}
+              {(generating || saving) && <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} />}
+              {generating ? "Generating..." : saving ? "Saving..." : "Generate Feedback"}
             </button>
 
-            {/* Error message */}
             {apiError && (
               <div style={{ marginTop: "12px", padding: "12px 14px", borderRadius: "8px", backgroundColor: "#fef2f2", border: "1px solid #fecaca", display: "flex", gap: "8px" }}>
                 <AlertCircle size={15} color="#dc2626" style={{ flexShrink: 0, marginTop: "1px" }} />
@@ -229,7 +321,13 @@ export default function UploadPage() {
               </div>
             )}
 
-            {/* AI result card */}
+            {successMessage && (
+              <div style={{ marginTop: "12px", padding: "12px 14px", borderRadius: "8px", backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", display: "flex", gap: "8px" }}>
+                <CheckCircle size={15} color="#16a34a" style={{ flexShrink: 0, marginTop: "1px" }} />
+                <p style={{ fontSize: "13px", color: "#15803d", lineHeight: "1.5" }}>{successMessage}</p>
+              </div>
+            )}
+
             {result && (
               <div style={{ marginTop: "16px", borderRadius: "8px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
                 <div style={{ padding: "12px 16px", backgroundColor: "#f8fafc", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -237,10 +335,12 @@ export default function UploadPage() {
                     <CheckCircle size={14} color="#16a34a" />
                     <span style={{ fontSize: "13px", fontWeight: "600", color: "#1e293b" }}>Feedback Generated</span>
                   </div>
+
                   <span style={{ fontSize: "15px", fontWeight: "700", color: "#1e293b", backgroundColor: "#e2e8f0", padding: "2px 10px", borderRadius: "6px" }}>
                     {result.grade}
                   </span>
                 </div>
+
                 <div style={{ padding: "14px 16px", fontSize: "13px", color: "#374151", lineHeight: "1.7", whiteSpace: "pre-line", maxHeight: "200px", overflowY: "auto" }}>
                   {result.feedback}
                 </div>
@@ -250,7 +350,6 @@ export default function UploadPage() {
         </div>
       </main>
 
-      {/* Spinner keyframe animation — cannot be written as an inline style */}
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );

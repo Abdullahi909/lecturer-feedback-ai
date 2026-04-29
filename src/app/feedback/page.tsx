@@ -1,386 +1,424 @@
 "use client";
 
-// Feedback Review page.
-// Split-panel layout: left = list of submissions, right = selected feedback detail.
-// The lecturer can approve, reject, or edit each piece of AI-generated feedback.
+// Feedback review page.
+// This version keeps the logic very direct:
+// 1. load feedback items
+// 2. show one selected item
+// 3. approve, reject, or edit it
 
 import Sidebar from "@/components/Sidebar";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
-import { useState } from "react";
+import { fetchFeedbackReviewItems, updateSubmission } from "@/lib/supabase";
+import type { SubmissionWithDetails } from "@/lib/types";
 import { CheckCircle, XCircle, Edit3, User, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
-// The three possible states for a feedback submission.
-type FeedbackStatus = "pending" | "approved" | "rejected";
-
-// What each feedback item looks like.
-type FeedbackItem = {
-  id: number;
-  studentName: string;
-  studentId: string;
-  module: string;
-  assignment: string;
-  submittedDate: string;
-  status: FeedbackStatus;
-  grade: string;
-  feedback: string;
-};
-
-// Colour and label for each status badge.
 const statusStyles = {
-  pending:  { label: "Pending Review", color: "#d97706", bg: "#fef3c7" },
-  approved: { label: "Approved",       color: "#16a34a", bg: "#dcfce7" },
-  rejected: { label: "Rejected",       color: "#dc2626", bg: "#fee2e2" },
+  pending: { label: "Pending Review", color: "#d97706", bg: "#fef3c7" },
+  approved: { label: "Approved", color: "#16a34a", bg: "#dcfce7" },
+  rejected: { label: "Rejected", color: "#dc2626", bg: "#fee2e2" },
 };
 
-// Demo submissions — one of each status so all three states are visible.
-const allFeedback: FeedbackItem[] = [
-  {
-    id: 1,
-    studentName: "Alice Johnson",
-    studentId: "STU2401",
-    module: "CS201",
-    assignment: "Essay 1 — Critical Analysis",
-    submittedDate: "12 Mar 2026",
-    status: "pending",
-    grade: "B+",
-    feedback: "Alice demonstrates strong analytical capabilities throughout this essay. Her critical examination of distributed systems theory is well-grounded in cited literature, particularly in sections two and three where she draws on contemporary research.\n\nHer argument structure is coherent and logical, with each paragraph building meaningfully on the previous. However, the conclusion feels rushed and does not fully synthesise the preceding discussion — a more considered closing section would strengthen the overall work.\n\nUse of sources is good overall, though two citations in section four lack page references. Originality is evident in her comparative framework, which offers a fresh perspective on the topic.\n\nRecommended grade reflects solid understanding with room for refinement in argumentation and citation practice.",
-  },
-  {
-    id: 2,
-    studentName: "Clara Svensson",
-    studentId: "STU2403",
-    module: "CS310",
-    assignment: "Lab Report 2",
-    submittedDate: "10 Mar 2026",
-    status: "approved",
-    grade: "A-",
-    feedback: "Clara's lab report is exemplary in its structure and methodological clarity. The introduction contextualises the experiment well within the broader field, and the methodology section is detailed and reproducible.\n\nResults are presented clearly with well-labelled figures and tables. The discussion demonstrates strong critical thinking, connecting outcomes to theoretical frameworks with appropriate nuance. Clara correctly identifies limitations and suggests meaningful avenues for future investigation.\n\nMinor deductions relate to two typographical errors in the bibliography. These are negligible given the overall quality.\n\nThis is an outstanding submission demonstrating both technical competence and the ability to critically engage with experimental findings.",
-  },
-  {
-    id: 3,
-    studentName: "Finn Murphy",
-    studentId: "STU2406",
-    module: "CS415",
-    assignment: "Research Proposal",
-    submittedDate: "15 Mar 2026",
-    status: "rejected",
-    grade: "D",
-    feedback: "Finn's proposal requires substantial revision before it can proceed. The research question as stated is too broad to be meaningfully addressed within the proposed scope, and no clear hypothesis is articulated.\n\nThe literature review cites only five sources, none published within the last three years, suggesting insufficient engagement with the current state of the field. The methodology section describes the intent to \"collect data\" without specifying sources, instruments, or analysis approaches.\n\nNo timeline, ethical considerations, or success metrics are included — all mandatory components at this level.\n\nFinn should schedule a meeting with his supervisor before resubmission. A significant rework of the core research question and methodology is required.",
-  },
-];
-
-// Build the starting statuses object from the demo data: { 1: "pending", 2: "approved", 3: "rejected" }
-function buildInitialStatuses(): { [id: number]: FeedbackStatus } {
-  const result: { [id: number]: FeedbackStatus } = {};
-  for (const item of allFeedback) {
-    result[item.id] = item.status;
-  }
-  return result;
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 export default function FeedbackPage() {
   const { user, loading } = useAuthGuard("lecturer");
-
-  // Which submission is shown in the right panel (starts with submission 1).
-  const [selectedId, setSelectedId] = useState(1);
-
-  // Filter dropdown values.
+  const [items, setItems] = useState<SubmissionWithDetails[]>([]);
+  const [selectedId, setSelectedId] = useState("");
   const [filterModule, setFilterModule] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
-
-  // Current status of each submission — stored separately so we can update it
-  // without touching the original allFeedback data above.
-  const [statuses, setStatuses] = useState(buildInitialStatuses);
-
-  // Any edits the lecturer has made to feedback text.
-  // Key = submission id, value = the edited text.
-  const [editedFeedback, setEditedFeedback] = useState<{ [id: number]: string }>({});
-
-  // Edit modal open/closed state.
   const [showEditModal, setShowEditModal] = useState(false);
-
-  // The text currently in the edit modal textarea.
   const [editDraft, setEditDraft] = useState("");
+  const [pageLoading, setPageLoading] = useState(true);
+  const [pageError, setPageError] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  if (loading || !user) return null;
+  useEffect(() => {
+    async function loadItems() {
+      try {
+        const data = await fetchFeedbackReviewItems();
+        setItems(data);
 
-  // Get unique module codes for the filter dropdown (no duplicates).
-  const moduleOptions: string[] = [];
-  for (const item of allFeedback) {
-    if (!moduleOptions.includes(item.module)) {
-      moduleOptions.push(item.module);
+        if (data[0]) {
+          setSelectedId(data[0].id);
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Could not load feedback items.";
+        setPageError(message);
+      } finally {
+        setPageLoading(false);
+      }
     }
-  }
 
-  // Filter the list based on the active dropdowns.
-  const filtered = allFeedback.filter((item) => {
-    if (filterModule !== "all" && item.module !== filterModule) return false;
-    if (filterStatus !== "all" && statuses[item.id] !== filterStatus) return false;
-    return true;
-  });
+    loadItems();
+  }, []);
 
-  // The currently selected submission (fall back to the first one if none selected).
-  const selected = allFeedback.find((item) => item.id === selectedId) ?? allFeedback[0];
+  const moduleOptions = useMemo(() => {
+    const values = items.map((item) => item.module?.code).filter((value): value is string => Boolean(value));
+    return Array.from(new Set(values));
+  }, [items]);
 
-  // Use edited text if it exists, otherwise show the original AI feedback.
-  const displayedFeedback = editedFeedback[selected.id] ?? selected.feedback;
+  const filteredItems = useMemo(() => {
+    return items.filter((item) => {
+      if (filterModule !== "all" && item.module?.code !== filterModule) {
+        return false;
+      }
 
-  // Shorthand for the current status of the selected submission.
-  const selectedStatus = statuses[selected.id];
+      if (filterStatus !== "all" && item.status !== filterStatus) {
+        return false;
+      }
 
-  function approve(id: number) {
-    const updated = { ...statuses };
-    updated[id] = "approved";
-    setStatuses(updated);
-  }
+      return true;
+    });
+  }, [items, filterModule, filterStatus]);
 
-  function reject(id: number) {
-    const updated = { ...statuses };
-    updated[id] = "rejected";
-    setStatuses(updated);
-  }
+  useEffect(() => {
+    if (!filteredItems.find((item) => item.id === selectedId) && filteredItems[0]) {
+      setSelectedId(filteredItems[0].id);
+    }
+  }, [filteredItems, selectedId]);
+
+  const selectedItem =
+    filteredItems.find((item) => item.id === selectedId) ??
+    filteredItems[0] ??
+    null;
 
   function openEditModal() {
-    // Pre-fill the textarea with whatever text is currently showing.
-    setEditDraft(displayedFeedback);
+    if (!selectedItem) {
+      return;
+    }
+
+    setEditDraft(selectedItem.feedback ?? "");
     setShowEditModal(true);
   }
 
-  function saveEdit() {
-    // Store the edited text against this submission's id.
-    const updated = { ...editedFeedback };
-    updated[selected.id] = editDraft;
-    setEditedFeedback(updated);
+  function cancelEdit() {
     setShowEditModal(false);
+    setEditDraft("");
   }
 
-  function cancelEdit() {
-    setEditDraft("");
-    setShowEditModal(false);
+  async function saveEdit() {
+    if (!selectedItem) {
+      return;
+    }
+
+    setSaving(true);
+    setPageError("");
+
+    try {
+      const updated = await updateSubmission(selectedItem.id, {
+        feedback: editDraft,
+      });
+
+      if (!updated) {
+        throw new Error("Could not save feedback.");
+      }
+
+      setItems((current) =>
+        current.map((item) =>
+          item.id === selectedItem.id
+            ? { ...item, feedback: updated.feedback }
+            : item
+        )
+      );
+
+      cancelEdit();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Could not save feedback.";
+      setPageError(message);
+    } finally {
+      setSaving(false);
+    }
   }
+
+  async function approveItem() {
+    if (!selectedItem) {
+      return;
+    }
+
+    setSaving(true);
+    setPageError("");
+
+    try {
+      const updated = await updateSubmission(selectedItem.id, {
+        status: "approved",
+      });
+
+      if (!updated) {
+        throw new Error("Could not approve feedback.");
+      }
+
+      setItems((current) =>
+        current.map((item) =>
+          item.id === selectedItem.id
+            ? { ...item, status: "approved" }
+            : item
+        )
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Could not approve feedback.";
+      setPageError(message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function rejectItem() {
+    if (!selectedItem) {
+      return;
+    }
+
+    setSaving(true);
+    setPageError("");
+
+    try {
+      const updated = await updateSubmission(selectedItem.id, {
+        status: "rejected",
+      });
+
+      if (!updated) {
+        throw new Error("Could not reject feedback.");
+      }
+
+      setItems((current) =>
+        current.map((item) =>
+          item.id === selectedItem.id
+            ? { ...item, status: "rejected" }
+            : item
+        )
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Could not reject feedback.";
+      setPageError(message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading || !user) return null;
 
   return (
-    // height: 100vh + overflow: hidden keeps this page within the viewport.
-    // Each panel scrolls independently inside it.
-    <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+    <div style={{ display: "flex", minHeight: "100vh", backgroundColor: "#f8fafc" }}>
       <Sidebar />
 
-      <main style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-
-        {/* Top bar — page title and filters */}
-        <div style={{ padding: "24px 28px 20px", borderBottom: "1px solid #e2e8f0", backgroundColor: "#fff", flexShrink: 0 }}>
+      <main style={{ flex: 1, padding: "32px", overflowY: "auto" }}>
+        <div style={{ marginBottom: "28px" }}>
           <h1 style={{ fontSize: "22px", fontWeight: "700", color: "#1e293b" }}>Feedback Review</h1>
           <p style={{ fontSize: "14px", color: "#64748b", marginTop: "4px" }}>
-            Review, edit and approve AI-generated feedback before it reaches students.
+            Review AI-generated feedback before it is shown to students.
           </p>
-
-          <div style={{ display: "flex", gap: "10px", marginTop: "16px", alignItems: "center" }}>
-            <select
-              value={filterModule}
-              onChange={(e) => setFilterModule(e.target.value)}
-              style={{ padding: "8px 12px", borderRadius: "8px", border: "1px solid #d1d5db", fontSize: "13px", color: "#1e293b", backgroundColor: "#fff", outline: "none", cursor: "pointer" }}
-            >
-              <option value="all">All Modules</option>
-              {moduleOptions.map((m) => <option key={m} value={m}>{m}</option>)}
-            </select>
-
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              style={{ padding: "8px 12px", borderRadius: "8px", border: "1px solid #d1d5db", fontSize: "13px", color: "#1e293b", backgroundColor: "#fff", outline: "none", cursor: "pointer" }}
-            >
-              <option value="all">All Statuses</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-            </select>
-
-            <span style={{ fontSize: "13px", color: "#64748b", marginLeft: "auto" }}>
-              {filtered.length} {filtered.length === 1 ? "submission" : "submissions"}
-            </span>
-          </div>
         </div>
 
-        {/* Split panels */}
-        <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+        {pageLoading && (
+          <div style={{ backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "20px", fontSize: "14px", color: "#475569", marginBottom: "20px" }}>
+            Loading feedback items...
+          </div>
+        )}
 
-          {/* LEFT — scrollable list of submissions */}
-          <div style={{ width: "320px", flexShrink: 0, borderRight: "1px solid #e2e8f0", overflowY: "auto", backgroundColor: "#f8fafc" }}>
-            {filtered.length === 0 && (
-              <p style={{ padding: "40px 20px", textAlign: "center", color: "#94a3b8", fontSize: "14px" }}>
-                No submissions match the current filters.
-              </p>
-            )}
+        {pageError && (
+          <div style={{ backgroundColor: "#fef2f2", borderRadius: "10px", border: "1px solid #fecaca", padding: "16px", fontSize: "14px", color: "#b91c1c", marginBottom: "20px" }}>
+            {pageError}
+          </div>
+        )}
 
-            {filtered.map((item) => {
-              const style = statusStyles[statuses[item.id]];
-              const isSelected = item.id === selectedId;
+        <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: "24px", alignItems: "start" }}>
+          <div style={{ backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", overflow: "hidden" }}>
+            <div style={{ padding: "18px 20px", borderBottom: "1px solid #f1f5f9" }}>
+              <h2 style={{ fontSize: "15px", fontWeight: "600", color: "#1e293b", marginBottom: "14px" }}>Submissions</h2>
 
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setSelectedId(item.id)}
-                  style={{
-                    width: "100%",
-                    padding: "16px 20px",
-                    textAlign: "left",
-                    border: "none",
-                    borderBottom: "1px solid #e2e8f0",
-                    // Blue left border shows which item is active.
-                    borderLeft: isSelected ? "3px solid #3b82f6" : "3px solid transparent",
-                    backgroundColor: isSelected ? "#ffffff" : "transparent",
-                    cursor: "pointer",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "6px",
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: "14px", fontWeight: "600", color: "#1e293b" }}>{item.studentName}</span>
-                    <span style={{ fontSize: "11px", fontWeight: "500", color: style.color, backgroundColor: style.bg, padding: "2px 8px", borderRadius: "20px", whiteSpace: "nowrap" }}>
-                      {style.label}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: "12px", color: "#64748b", display: "flex", alignItems: "center", gap: "6px" }}>
-                    <span style={{ fontSize: "11px", fontWeight: "600", color: "#3b82f6", backgroundColor: "#eff6ff", padding: "2px 6px", borderRadius: "4px", flexShrink: 0 }}>
-                      {item.module}
-                    </span>
-                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.assignment}</span>
-                  </div>
-                </button>
-              );
-            })}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <select value={filterModule} onChange={(e) => setFilterModule(e.target.value)} style={{ padding: "10px 12px", borderRadius: "8px", border: "1px solid #d1d5db", fontSize: "13px", color: "#1e293b", backgroundColor: "#fff" }}>
+                  <option value="all">All Modules</option>
+                  {moduleOptions.map((module) => (
+                    <option key={module} value={module}>
+                      {module}
+                    </option>
+                  ))}
+                </select>
+
+                <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ padding: "10px 12px", borderRadius: "8px", border: "1px solid #d1d5db", fontSize: "13px", color: "#1e293b", backgroundColor: "#fff" }}>
+                  <option value="all">All Statuses</option>
+                  <option value="pending">Pending</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={{ maxHeight: "calc(100vh - 220px)", overflowY: "auto" }}>
+              {filteredItems.length === 0 && (
+                <div style={{ padding: "18px 20px", fontSize: "14px", color: "#64748b" }}>
+                  No feedback items found.
+                </div>
+              )}
+
+              {filteredItems.map((item, index) => {
+                const isSelected = item.id === selectedItem?.id;
+                const status = statusStyles[item.status];
+
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setSelectedId(item.id)}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      border: "none",
+                      borderTop: index === 0 ? "none" : "1px solid #f1f5f9",
+                      backgroundColor: isSelected ? "#eff6ff" : "#fff",
+                      padding: "18px 20px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
+                      <div>
+                        <p style={{ fontSize: "14px", fontWeight: "600", color: "#1e293b" }}>{item.student?.name ?? "Student"}</p>
+                        <p style={{ fontSize: "12px", color: "#64748b", marginTop: "4px" }}>
+                          {item.module?.code ?? "Module"} · {item.assignment}
+                        </p>
+                        <p style={{ fontSize: "12px", color: "#94a3b8", marginTop: "4px" }}>
+                          Submitted {formatDate(item.submitted_date)}
+                        </p>
+                      </div>
+
+                      <span style={{ fontSize: "11px", fontWeight: "500", color: status.color, backgroundColor: status.bg, padding: "4px 8px", borderRadius: "20px", flexShrink: 0 }}>
+                        {status.label}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          {/* RIGHT — detail panel for the selected submission */}
-          <div style={{ flex: 1, overflowY: "auto", padding: "28px", backgroundColor: "#fff" }}>
+          <div style={{ backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "24px" }}>
+            {!selectedItem && (
+              <p style={{ fontSize: "14px", color: "#64748b" }}>
+                Select a submission from the left to review it.
+              </p>
+            )}
 
-            {/* Student header */}
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "24px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-                <div style={{ width: "44px", height: "44px", borderRadius: "50%", backgroundColor: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <User size={20} color="#3b82f6" />
+            {selectedItem && (
+              <>
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px", marginBottom: "20px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+                    <div style={{ width: "42px", height: "42px", borderRadius: "50%", backgroundColor: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <User size={18} color="#2563eb" />
+                    </div>
+
+                    <div>
+                      <h2 style={{ fontSize: "17px", fontWeight: "700", color: "#1e293b" }}>{selectedItem.student?.name ?? "Student"}</h2>
+                      <p style={{ fontSize: "13px", color: "#64748b", marginTop: "2px" }}>
+                        {selectedItem.student?.username ?? "-"} · {selectedItem.module?.code ?? "Module"} · Submitted {formatDate(selectedItem.submitted_date)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <span style={{ fontSize: "12px", fontWeight: "500", color: statusStyles[selectedItem.status].color, backgroundColor: statusStyles[selectedItem.status].bg, padding: "4px 12px", borderRadius: "20px", flexShrink: 0 }}>
+                    {statusStyles[selectedItem.status].label}
+                  </span>
                 </div>
-                <div>
-                  <h2 style={{ fontSize: "17px", fontWeight: "700", color: "#1e293b" }}>{selected.studentName}</h2>
-                  <p style={{ fontSize: "13px", color: "#64748b", marginTop: "2px" }}>
-                    {selected.studentId} · {selected.module} · Submitted {selected.submittedDate}
+
+                <div style={{ backgroundColor: "#f8fafc", borderRadius: "10px", padding: "16px 20px", marginBottom: "20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <p style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.05em" }}>Assignment</p>
+                    <p style={{ fontSize: "14px", color: "#1e293b", fontWeight: "500", marginTop: "3px" }}>{selectedItem.assignment}</p>
+                  </div>
+
+                  <div style={{ textAlign: "right" }}>
+                    <p style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.05em" }}>Suggested Grade</p>
+                    <p style={{ fontSize: "26px", fontWeight: "700", color: "#1e293b", marginTop: "2px" }}>{selectedItem.grade ?? "-"}</p>
+                  </div>
+                </div>
+
+                <div style={{ backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "20px", marginBottom: "20px" }}>
+                  <h3 style={{ fontSize: "11px", fontWeight: "600", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "14px" }}>
+                    AI-Generated Feedback
+                  </h3>
+
+                  <p style={{ fontSize: "14px", color: "#374151", lineHeight: "1.75", whiteSpace: "pre-line" }}>
+                    {selectedItem.feedback ?? "No feedback found."}
                   </p>
                 </div>
-              </div>
-              <span style={{ fontSize: "12px", fontWeight: "500", color: statusStyles[selectedStatus].color, backgroundColor: statusStyles[selectedStatus].bg, padding: "4px 12px", borderRadius: "20px", flexShrink: 0 }}>
-                {statusStyles[selectedStatus].label}
-              </span>
-            </div>
 
-            {/* Assignment and grade */}
-            <div style={{ backgroundColor: "#f8fafc", borderRadius: "10px", padding: "16px 20px", marginBottom: "20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <p style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.05em" }}>Assignment</p>
-                <p style={{ fontSize: "14px", color: "#1e293b", fontWeight: "500", marginTop: "3px" }}>{selected.assignment}</p>
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <p style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.05em" }}>Suggested Grade</p>
-                <p style={{ fontSize: "26px", fontWeight: "700", color: "#1e293b", marginTop: "2px" }}>{selected.grade}</p>
-              </div>
-            </div>
+                {selectedItem.status === "pending" && (
+                  <div style={{ display: "flex", gap: "10px" }}>
+                    <button onClick={rejectItem} disabled={saving} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 18px", borderRadius: "8px", border: "1px solid #fca5a5", backgroundColor: "#fff", color: "#dc2626", fontSize: "14px", fontWeight: "500", cursor: "pointer" }}>
+                      <XCircle size={16} /> Reject
+                    </button>
 
-            {/* Feedback text */}
-            <div style={{ backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "20px", marginBottom: "20px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px" }}>
-                <h3 style={{ fontSize: "11px", fontWeight: "600", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                  AI-Generated Feedback
-                </h3>
-                {/* "Edited" badge — shows if the lecturer has changed the text */}
-                {editedFeedback[selected.id] && (
-                  <span style={{ fontSize: "10px", color: "#2563eb", backgroundColor: "#dbeafe", padding: "2px 6px", borderRadius: "4px", fontWeight: "500" }}>
-                    Edited
-                  </span>
+                    <button onClick={openEditModal} disabled={saving} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 18px", borderRadius: "8px", border: "1px solid #d1d5db", backgroundColor: "#fff", color: "#374151", fontSize: "14px", fontWeight: "500", cursor: "pointer" }}>
+                      <Edit3 size={16} /> Edit
+                    </button>
+
+                    <button onClick={approveItem} disabled={saving} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 22px", borderRadius: "8px", border: "none", backgroundColor: "#16a34a", color: "#fff", fontSize: "14px", fontWeight: "600", cursor: "pointer", marginLeft: "auto" }}>
+                      <CheckCircle size={16} /> Approve & Send
+                    </button>
+                  </div>
                 )}
-              </div>
-              <p style={{ fontSize: "14px", color: "#374151", lineHeight: "1.75", whiteSpace: "pre-line" }}>
-                {displayedFeedback}
-              </p>
-            </div>
 
-            {/* Action buttons — only shown when status is "pending" */}
-            {selectedStatus === "pending" && (
-              <div style={{ display: "flex", gap: "10px" }}>
-                <button onClick={() => reject(selected.id)} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 18px", borderRadius: "8px", border: "1px solid #fca5a5", backgroundColor: "#fff", color: "#dc2626", fontSize: "14px", fontWeight: "500", cursor: "pointer" }}>
-                  <XCircle size={16} /> Reject
-                </button>
+                {selectedItem.status === "approved" && (
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "14px 16px", backgroundColor: "#f0fdf4", borderRadius: "8px", border: "1px solid #bbf7d0" }}>
+                    <CheckCircle size={16} color="#16a34a" />
+                    <span style={{ fontSize: "14px", color: "#15803d", fontWeight: "500" }}>Feedback approved and sent to student.</span>
+                  </div>
+                )}
 
-                <button onClick={openEditModal} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 18px", borderRadius: "8px", border: "1px solid #d1d5db", backgroundColor: "#fff", color: "#374151", fontSize: "14px", fontWeight: "500", cursor: "pointer" }}>
-                  <Edit3 size={16} /> Edit
-                </button>
-
-                <button onClick={() => approve(selected.id)} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 22px", borderRadius: "8px", border: "none", backgroundColor: "#16a34a", color: "#fff", fontSize: "14px", fontWeight: "600", cursor: "pointer", marginLeft: "auto" }}>
-                  <CheckCircle size={16} /> Approve & Send
-                </button>
-              </div>
-            )}
-
-            {selectedStatus === "approved" && (
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "14px 16px", backgroundColor: "#f0fdf4", borderRadius: "8px", border: "1px solid #bbf7d0" }}>
-                <CheckCircle size={16} color="#16a34a" />
-                <span style={{ fontSize: "14px", color: "#15803d", fontWeight: "500" }}>Feedback approved and sent to student.</span>
-              </div>
-            )}
-
-            {selectedStatus === "rejected" && (
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "14px 16px", backgroundColor: "#fef2f2", borderRadius: "8px", border: "1px solid #fecaca" }}>
-                <XCircle size={16} color="#dc2626" />
-                <span style={{ fontSize: "14px", color: "#b91c1c", fontWeight: "500" }}>Feedback rejected. This submission will need manual review.</span>
-              </div>
+                {selectedItem.status === "rejected" && (
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "14px 16px", backgroundColor: "#fef2f2", borderRadius: "8px", border: "1px solid #fecaca" }}>
+                    <XCircle size={16} color="#dc2626" />
+                    <span style={{ fontSize: "14px", color: "#b91c1c", fontWeight: "500" }}>Feedback rejected. This submission needs more work before approval.</span>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
       </main>
 
-      {/* Edit modal — shown when the lecturer clicks Edit */}
-      {showEditModal && (
-        // Dark overlay — clicking it closes the modal.
-        <div
-          onClick={cancelEdit}
-          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: "24px" }}
-        >
-          {/* White card — clicking inside doesn't close the modal */}
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{ backgroundColor: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", width: "100%", maxWidth: "640px", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}
-          >
-            {/* Modal header */}
+      {showEditModal && selectedItem && (
+        <div onClick={cancelEdit} style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: "24px" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ backgroundColor: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", width: "100%", maxWidth: "640px", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>
             <div style={{ padding: "20px 24px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
                 <h3 style={{ fontSize: "16px", fontWeight: "700", color: "#1e293b" }}>Edit Feedback</h3>
-                <p style={{ fontSize: "13px", color: "#64748b", marginTop: "2px" }}>{selected.studentName} · {selected.assignment}</p>
+                <p style={{ fontSize: "13px", color: "#64748b", marginTop: "2px" }}>
+                  {selectedItem.student?.name ?? "Student"} · {selectedItem.assignment}
+                </p>
               </div>
+
               <button onClick={cancelEdit} style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", display: "flex" }}>
                 <X size={18} color="#94a3b8" />
               </button>
             </div>
 
-            {/* Textarea */}
             <div style={{ padding: "20px 24px" }}>
-              <label style={{ display: "block", fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "8px" }}>
-                Feedback Text
-              </label>
               <textarea
                 value={editDraft}
                 onChange={(e) => setEditDraft(e.target.value)}
                 rows={12}
-                style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid #d1d5db", fontSize: "14px", color: "#374151", lineHeight: "1.7", outline: "none", resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }}
+                style={{ width: "100%", padding: "14px", borderRadius: "10px", border: "1px solid #d1d5db", fontSize: "14px", color: "#1e293b", lineHeight: "1.7", resize: "vertical", boxSizing: "border-box" }}
               />
-            </div>
 
-            {/* Footer buttons */}
-            <div style={{ padding: "16px 24px", borderTop: "1px solid #f1f5f9", display: "flex", justifyContent: "flex-end", gap: "10px" }}>
-              <button onClick={cancelEdit} style={{ padding: "10px 20px", borderRadius: "8px", border: "1px solid #d1d5db", backgroundColor: "#fff", color: "#374151", fontSize: "14px", fontWeight: "500", cursor: "pointer" }}>
-                Cancel
-              </button>
-              <button onClick={saveEdit} style={{ padding: "10px 24px", borderRadius: "8px", border: "none", backgroundColor: "#1e293b", color: "#fff", fontSize: "14px", fontWeight: "600", cursor: "pointer" }}>
-                Save Changes
-              </button>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "16px" }}>
+                <button onClick={cancelEdit} disabled={saving} style={{ padding: "10px 16px", borderRadius: "8px", border: "1px solid #d1d5db", backgroundColor: "#fff", color: "#374151", fontSize: "14px", fontWeight: "500", cursor: "pointer" }}>
+                  Cancel
+                </button>
+
+                <button onClick={saveEdit} disabled={saving} style={{ padding: "10px 18px", borderRadius: "8px", border: "none", backgroundColor: "#1e293b", color: "#fff", fontSize: "14px", fontWeight: "600", cursor: "pointer" }}>
+                  {saving ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -1,15 +1,16 @@
 // API route — called by the upload page when the lecturer clicks "Generate Feedback".
-// Sends the assignment details to Claude and returns the feedback text + grade.
-//
-// Set ANTHROPIC_API_KEY in .env.local for local development.
-// On Vercel, add it under Project Settings → Environment Variables.
+// This version reads the real uploaded files, extracts text, and sends that text to Claude.
 
+import mammoth from "mammoth";
 import { NextRequest, NextResponse } from "next/server";
+import { PDFParse } from "pdf-parse";
+
+// Use the Node runtime because the file parsers need it.
+export const runtime = "nodejs";
 
 const MODEL = "claude-haiku-4-5-20251001";
 
 // System prompt — tells Claude how to behave and grade.
-// Kept in the system field (not the user message) so the lecturer can't accidentally override it.
 const SYSTEM_PROMPT = `
 You are an experienced university lecturer writing constructive feedback on student assignments.
 
@@ -34,6 +35,53 @@ End your response with exactly this line (nothing else after it):
 GRADE: X
 `.trim();
 
+// Limit the amount of submission text sent to the AI.
+const MAX_SUBMISSION_TEXT = 12000;
+
+// Read one uploaded file and turn it into text.
+async function extractTextFromFile(file: File) {
+  const fileName = file.name.toLowerCase();
+  const fileBuffer = Buffer.from(await file.arrayBuffer());
+
+  if (fileName.endsWith(".txt")) {
+    return fileBuffer.toString("utf8");
+  }
+
+  if (fileName.endsWith(".docx")) {
+    const result = await mammoth.extractRawText({ buffer: fileBuffer });
+    return result.value;
+  }
+
+  if (fileName.endsWith(".pdf")) {
+    const parser = new PDFParse({ data: fileBuffer });
+    const result = await parser.getText();
+    await parser.destroy();
+    return result.text;
+  }
+
+  throw new Error(`Unsupported file type: ${file.name}`);
+}
+
+// Read all files and join their text together.
+async function extractSubmissionText(files: File[]) {
+  const parts: string[] = [];
+
+  for (const file of files) {
+    const text = await extractTextFromFile(file);
+    const cleanText = text.replace(/\s+/g, " ").trim();
+
+    if (cleanText) {
+      parts.push(`File: ${file.name}\n${cleanText}`);
+    }
+  }
+
+  if (parts.length === 0) {
+    throw new Error("No readable text was found in the uploaded files.");
+  }
+
+  return parts.join("\n\n").slice(0, MAX_SUBMISSION_TEXT);
+}
+
 export async function POST(request: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY ?? "";
 
@@ -44,21 +92,39 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Read the request body.
-  let body: { studentName?: string; module?: string; assignment?: string; criteria?: string; tone?: string };
+  // Read the multipart form data from the upload page.
+  let formData: FormData;
   try {
-    body = await request.json();
+    formData = await request.formData();
   } catch {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
-  const studentName = body.studentName ?? "the student";
-  const module      = body.module      ?? "General";
-  const assignment  = body.assignment  ?? "Assignment";
-  const criteria    = body.criteria    ?? "Critical Analysis (30%), Structure & Clarity (25%), Use of Sources (25%), Originality (20%)";
-  const tone        = body.tone        ?? "Constructive";
+  const studentName = String(formData.get("studentName") ?? "the student");
+  const module = String(formData.get("module") ?? "General");
+  const assignment = String(formData.get("assignment") ?? "Assignment");
+  const criteria = String(
+    formData.get("criteria") ??
+      "Critical Analysis (30%), Structure & Clarity (25%), Use of Sources (25%), Originality (20%)"
+  );
+  const tone = String(formData.get("tone") ?? "Constructive");
+  const files = formData.getAll("files").filter((item): item is File => item instanceof File);
 
-  // The message we send to Claude — per-request context only.
+  if (files.length === 0) {
+    return NextResponse.json({ error: "Please upload at least one file." }, { status: 400 });
+  }
+
+  let submissionText = "";
+
+  try {
+    submissionText = await extractSubmissionText(files);
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Could not read the uploaded files.";
+
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+
   const userMessage = `
 Please write feedback for the following student submission.
 
@@ -67,6 +133,9 @@ Module: ${module}
 Assignment: ${assignment}
 Assessment Criteria: ${criteria}
 Requested Tone: ${tone}
+
+Submission Content:
+${submissionText}
 
 Write the feedback now. End with GRADE: X on its own line.
 `.trim();
@@ -94,14 +163,11 @@ Write the feedback now. End with GRADE: X on its own line.
 
     const data = await response.json();
     const fullText: string = data.content?.[0]?.text ?? "";
-
-    // Extract the grade from the last line, e.g. "GRADE: B+"
     const gradeMatch = fullText.match(/GRADE:\s*([A-F][+-]?)/i);
-    const grade    = gradeMatch ? gradeMatch[1].toUpperCase() : "B";
+    const grade = gradeMatch ? gradeMatch[1].toUpperCase() : "B";
     const feedback = fullText.replace(/GRADE:\s*[A-F][+-]?/i, "").trim();
 
     return NextResponse.json({ feedback, grade });
-
   } catch (err) {
     console.error("Anthropic API error:", err);
     return NextResponse.json({ error: "Could not reach the AI service. Check your connection." }, { status: 500 });
