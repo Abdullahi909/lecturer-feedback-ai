@@ -1,89 +1,109 @@
+// API route — called by the upload page when the lecturer clicks "Generate Feedback".
+// Sends the assignment details to Claude and returns the feedback text + grade.
+//
+// Set ANTHROPIC_API_KEY in .env.local for local development.
+// On Vercel, add it under Project Settings → Environment Variables.
+
 import { NextRequest, NextResponse } from "next/server";
 
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY ?? "";
+const MODEL = "claude-haiku-4-5-20251001";
 
-// Grading rules, output structure, and tone instructions live here so they
-// stay identical across every API call regardless of who triggers it
-const GRADING_SYSTEM_PROMPT = `You are an experienced UK university academic assessor providing written feedback on student assignments. Your role is to evaluate student work fairly, constructively, and in line with UK Higher Education grading standards.
+// System prompt — tells Claude how to behave and grade.
+// Kept in the system field (not the user message) so the lecturer can't accidentally override it.
+const SYSTEM_PROMPT = `
+You are an experienced university lecturer writing constructive feedback on student assignments.
 
-GRADING SCALE:
-- A (Distinction): 70% and above — Exceptional work demonstrating mastery, originality, and critical insight that exceeds expectations
-- B+ (Merit+): 65–69% — Very good work with strong understanding and largely independent analysis
-- B (Merit): 60–64% — Good work that meets all learning outcomes with clear understanding
-- B- : 55–59% — Satisfactory work meeting most learning outcomes with some gaps in depth or accuracy
-- C+ : 52–54% — Adequate work meeting basic requirements but with notable weaknesses
-- C (Pass): 50–51% — Minimum passing standard with significant room for improvement
-- D (Marginal Fail): 40–49% — Does not fully meet requirements; key deficiencies present
-- F (Fail): Below 40% — Fails to meet minimum requirements with fundamental issues throughout
+GRADING SCALE (UK Higher Education):
+- A  = 70% and above  — Excellent, exceeds expectations
+- B+ = 65–69%         — Very good, strong understanding
+- B  = 60–64%         — Good, meets expectations well
+- B- = 55–59%         — Mostly good, some gaps
+- C+ = 52–54%         — Satisfactory, noticeable weaknesses
+- C  = 50–51%         — Adequate but needs improvement
+- D  = 40–49%         — Below standard, significant issues
+- F  = Below 40%      — Fails to meet requirements
 
-FEEDBACK STRUCTURE:
-Write feedback in exactly 3–4 paragraphs following this structure:
-1. Overall assessment — A concise summary of the work's quality and whether it meets the learning outcomes
-2. Strengths — 2–3 specific strengths with direct reference to the assessment criteria and weighting
-3. Areas for improvement — 2–3 specific, actionable suggestions the student can act on in future work
-4. Grade justification — A brief explanation of the grade awarded in relation to the criteria weights provided
+FEEDBACK STRUCTURE — write exactly 3 short paragraphs:
+1. Strengths — what the student did well
+2. Areas for improvement — specific, actionable suggestions
+3. Overall summary — brief closing comment and grade justification
 
-TONE AND LANGUAGE:
-- Adapt the tone as instructed by the lecturer (Constructive, Direct, or Encouraging)
-- Write in formal academic English — avoid colloquialisms
-- Be specific: reference actual features of the work rather than making generic statements
-- Address the student in the second person ("Your analysis...", "You demonstrate...")
-- Be honest and proportionate — neither inflate nor deflate grades beyond what the evidence supports
+TONE — match the requested tone (Constructive, Direct, or Encouraging). Always be respectful.
 
-CRITERIA WEIGHTING:
-When criteria and weights are provided, ensure your feedback gives proportional attention to each criterion. A criterion weighted at 30% should receive noticeably more commentary than one weighted at 20%.
+End your response with exactly this line (nothing else after it):
+GRADE: X
+`.trim();
 
-OUTPUT FORMAT:
-Write only the feedback paragraphs. Do not include headers, bullet points, preamble, or meta-commentary. On the very last line, write exactly: GRADE: <letter>`;
+export async function POST(request: NextRequest) {
+  const apiKey = process.env.ANTHROPIC_API_KEY ?? "";
 
-export async function POST(req: NextRequest) {
-  if (!ANTHROPIC_API_KEY) {
+  if (!apiKey) {
     return NextResponse.json(
-      { error: "AI service not configured. Add ANTHROPIC_API_KEY to your environment variables." },
+      { error: "AI service is not configured. Add ANTHROPIC_API_KEY to your environment variables." },
       { status: 503 }
     );
   }
 
-  const { studentName, module, assignment, criteria, tone } = await req.json();
+  // Read the request body.
+  let body: { studentName?: string; module?: string; assignment?: string; criteria?: string; tone?: string };
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  }
 
-  // Per-request context goes in the user message; the system prompt handles
-  // the grading rules so they can't be overridden by the user message content
-  const userMessage = `Please assess the following submission:
+  const studentName = body.studentName ?? "the student";
+  const module      = body.module      ?? "General";
+  const assignment  = body.assignment  ?? "Assignment";
+  const criteria    = body.criteria    ?? "Critical Analysis (30%), Structure & Clarity (25%), Use of Sources (25%), Originality (20%)";
+  const tone        = body.tone        ?? "Constructive";
+
+  // The message we send to Claude — per-request context only.
+  const userMessage = `
+Please write feedback for the following student submission.
 
 Student: ${studentName}
 Module: ${module}
 Assignment: ${assignment}
-Assessment criteria (with weightings): ${criteria}
-Feedback tone requested: ${tone}
+Assessment Criteria: ${criteria}
+Requested Tone: ${tone}
 
-Generate feedback following the structure and grading scale in your instructions.`;
+Write the feedback now. End with GRADE: X on its own line.
+`.trim();
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 900,
-      system: GRADING_SYSTEM_PROMPT,
-      messages: [{ role: "user", content: userMessage }],
-    }),
-  });
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: 900,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: "user", content: userMessage }],
+      }),
+    });
 
-  if (!res.ok) {
-    return NextResponse.json({ error: "AI request failed. Please try again." }, { status: 500 });
+    if (!response.ok) {
+      const err = await response.json();
+      return NextResponse.json({ error: err?.error?.message ?? "AI service error." }, { status: response.status });
+    }
+
+    const data = await response.json();
+    const fullText: string = data.content?.[0]?.text ?? "";
+
+    // Extract the grade from the last line, e.g. "GRADE: B+"
+    const gradeMatch = fullText.match(/GRADE:\s*([A-F][+-]?)/i);
+    const grade    = gradeMatch ? gradeMatch[1].toUpperCase() : "B";
+    const feedback = fullText.replace(/GRADE:\s*[A-F][+-]?/i, "").trim();
+
+    return NextResponse.json({ feedback, grade });
+
+  } catch (err) {
+    console.error("Anthropic API error:", err);
+    return NextResponse.json({ error: "Could not reach the AI service. Check your connection." }, { status: 500 });
   }
-
-  const data = await res.json();
-  const text: string = data.content[0].text;
-
-  // Pull the grade off the final line; fall back to B if the model omits it
-  const gradeMatch = text.match(/GRADE:\s*([A-F][+-]?)/i);
-  const grade = gradeMatch ? gradeMatch[1].toUpperCase() : "B";
-  const feedback = text.replace(/GRADE:\s*[A-F][+-]?/i, "").trim();
-
-  return NextResponse.json({ feedback, grade });
 }

@@ -1,43 +1,48 @@
 "use client";
-import { useEffect, useState } from "react";
+
+// Auth guard hook — call this at the top of every protected page.
+// It checks localStorage for a logged-in user and redirects if:
+//   - nobody is logged in (→ /login)
+//   - the wrong role is logged in (→ their own page)
+// While checking, it returns loading: true so the page shows nothing yet.
+
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-// Shape of the session object written to localStorage on login
+// The shape of the user object saved in localStorage after login.
 export type StoredUser = {
-  name: string;
-  initials: string;
+  name: string;     // e.g. "Abdullahi Mohamed"
+  initials: string; // e.g. "AM"
   role: "lecturer" | "student";
 };
 
-// Protects a page by checking the stored session on mount.
-// Returns { user, loading } — pages should render null while loading
-// to avoid a flash of protected content before the redirect fires.
-export function useAuthGuard(requiredRole: "lecturer" | "student" = "lecturer"): {
-  user: StoredUser | null;
-  loading: boolean;
-} {
-  const [user, setUser] = useState<StoredUser | null>(null);
+const STORAGE_KEY = "feedbackai_user";
+
+export function useAuthGuard(requiredRole: "lecturer" | "student") {
+  const [user,    setUser]    = useState<StoredUser | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
-    // localStorage is only safe inside useEffect — reading it at module level
-    // throws a ReferenceError during server-side rendering
-    const raw = localStorage.getItem("feedbackai_user");
+    // localStorage is only available in the browser, not during server rendering.
+    // useEffect only runs in the browser, so it is safe to read here.
+    const saved = localStorage.getItem(STORAGE_KEY);
 
-    if (!raw) {
+    if (!saved) {
+      // No one is logged in — go to the login page.
       router.replace("/login");
       return;
     }
 
-    const parsed = JSON.parse(raw) as StoredUser;
+    const parsed = JSON.parse(saved) as StoredUser;
 
     if (parsed.role !== requiredRole) {
-      // Wrong role — redirect each user to their own home rather than showing a blank page
+      // The logged-in user has the wrong role — send them to their own page.
       router.replace(parsed.role === "lecturer" ? "/dashboard" : "/student");
       return;
     }
 
+    // All good — store the user so the page can use it.
     setUser(parsed);
     setLoading(false);
   }, []);
