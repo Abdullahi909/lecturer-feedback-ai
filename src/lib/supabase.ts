@@ -1,6 +1,6 @@
 // Very small Supabase REST helper.
-// This uses plain fetch instead of a bigger client library.
-// The goal here is to keep the code easy to read for a student project.
+// This app uses plain fetch calls instead of the bigger Supabase client.
+// The idea is to keep the code simple enough for a student project.
 
 import type {
   DatabaseModule,
@@ -11,11 +11,11 @@ import type {
   SubmissionWithDetails,
 } from "@/lib/types";
 
-// Read the public Supabase values from environment variables.
+// Read the two public Supabase values from environment variables.
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
-// Return the headers needed for every Supabase REST request.
+// Build the common headers for every request.
 function getHeaders(extraHeaders?: Record<string, string>) {
   return {
     apikey: supabaseAnonKey,
@@ -25,19 +25,19 @@ function getHeaders(extraHeaders?: Record<string, string>) {
   };
 }
 
-// Stop early with a clear error if the env variables are missing.
+// Stop early if the app is missing its Supabase setup.
 function checkConfig() {
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error("Supabase environment variables are missing.");
   }
 }
 
-// Build a full REST URL.
+// Build the full REST URL for a table or query.
 function buildUrl(path: string) {
   return `${supabaseUrl}/rest/v1/${path}`;
 }
 
-// Read JSON safely from a response.
+// Read JSON only when the response actually has text in it.
 async function readJson(response: Response) {
   const text = await response.text();
 
@@ -48,7 +48,7 @@ async function readJson(response: Response) {
   return JSON.parse(text);
 }
 
-// Small generic request helper.
+// Generic helper used by all of the table functions below.
 async function request(path: string, options?: RequestInit) {
   checkConfig();
 
@@ -76,7 +76,7 @@ async function request(path: string, options?: RequestInit) {
   return data;
 }
 
-// Fetch users, optionally by role.
+// Read users, and optionally filter them by role.
 export async function fetchUsers(role?: UserRole) {
   const params = new URLSearchParams();
   params.set("select", "id,username,name,initials,role");
@@ -90,7 +90,7 @@ export async function fetchUsers(role?: UserRole) {
   return data as PublicUser[];
 }
 
-// Fetch one user by username.
+// Read one user by username for login.
 export async function fetchUserByUsername(username: string) {
   const params = new URLSearchParams();
   params.set("select", "id,username,password,name,initials,role");
@@ -103,7 +103,7 @@ export async function fetchUserByUsername(username: string) {
   return users[0] ?? null;
 }
 
-// Fetch all modules.
+// Read all modules.
 export async function fetchModules() {
   const params = new URLSearchParams();
   params.set("select", "id,code,name");
@@ -113,7 +113,7 @@ export async function fetchModules() {
   return data as DatabaseModule[];
 }
 
-// Fetch all submissions.
+// Read all submissions.
 export async function fetchSubmissions() {
   const params = new URLSearchParams();
   params.set("select", "id,student_id,module_id,assignment,submitted_date,status,feedback,grade,created_at");
@@ -123,7 +123,7 @@ export async function fetchSubmissions() {
   return data as DatabaseSubmission[];
 }
 
-// Update a single submission row.
+// Update one submission row.
 export async function updateSubmission(
   submissionId: string,
   values: Partial<Pick<DatabaseSubmission, "status" | "feedback" | "grade">>
@@ -144,7 +144,7 @@ export async function updateSubmission(
   return rows[0] ?? null;
 }
 
-// Insert a new submission row.
+// Create one new submission row.
 export async function createSubmission(
   values: Pick<DatabaseSubmission, "student_id" | "module_id" | "assignment" | "submitted_date" | "status" | "feedback" | "grade">
 ) {
@@ -163,8 +163,8 @@ export async function createSubmission(
   return rows[0] ?? null;
 }
 
-// Fetch all tables we need, then join them in plain JavaScript.
-// This is less clever than a nested query, but much easier to read.
+// Load the three main tables and join them in plain JavaScript.
+// This is not the fanciest approach, but it is easier to understand.
 export async function fetchSubmissionDetails() {
   const [submissions, users, modules] = await Promise.all([
     fetchSubmissions(),
@@ -186,19 +186,19 @@ export async function fetchSubmissionDetails() {
   return items;
 }
 
-// Return only the submissions for one student.
+// Filter the joined data down to one student.
 export async function fetchStudentSubmissionDetails(studentId: string) {
   const items = await fetchSubmissionDetails();
   return items.filter((item) => item.student_id === studentId);
 }
 
-// Return approved submissions only.
+// Return only approved submissions.
 export async function fetchApprovedSubmissionDetails() {
   const items = await fetchSubmissionDetails();
   return items.filter((item) => item.status === "approved");
 }
 
-// Return all submissions that already have AI feedback text.
+// Return items that already have feedback text and a mark.
 export async function fetchFeedbackReviewItems() {
   const items = await fetchSubmissionDetails();
   return items.filter((item) => item.feedback && item.grade);

@@ -1,12 +1,18 @@
-// API route — called by the upload page when the lecturer clicks "Generate Feedback".
-// This version reads the real uploaded files, extracts text, and sends that text to Claude.
+// API route for AI feedback generation.
+// The upload page sends form data here, including the student file.
+// This file keeps the logic simple:
+// 1. read the uploaded file
+// 2. turn it into plain text
+// 3. send the text to Anthropic
+// 4. return feedback and a mark
 
 import mammoth from "mammoth";
 import { NextRequest, NextResponse } from "next/server";
 
-// Use the Node runtime because the file parsers need it.
+// Use the Node runtime because file parsing needs Buffer support.
 export const runtime = "nodejs";
 
+// Keep the model in one place so it is easy to change later.
 const MODEL = "claude-haiku-4-5-20251001";
 
 // System prompt — tells Claude how to behave and grade.
@@ -31,10 +37,11 @@ End your response with exactly this line (nothing else after it):
 MARK: NN%
 `.trim();
 
-// Limit the amount of submission text sent to the AI.
+// Limit the text length so a huge file does not create a giant AI request.
 const MAX_SUBMISSION_TEXT = 12000;
 
-// Read one uploaded file and turn it into text.
+// Turn one uploaded file into plain text.
+// The live hosted app supports TXT and DOCX right now.
 async function extractTextFromFile(file: File) {
   const fileName = file.name.toLowerCase();
   const fileBuffer = Buffer.from(await file.arrayBuffer());
@@ -55,7 +62,7 @@ async function extractTextFromFile(file: File) {
   throw new Error(`Unsupported file type: ${file.name}`);
 }
 
-// Read all files and join their text together.
+// Join all uploaded files into one block of text for the AI prompt.
 async function extractSubmissionText(files: File[]) {
   const parts: string[] = [];
 
@@ -76,6 +83,7 @@ async function extractSubmissionText(files: File[]) {
 }
 
 export async function POST(request: NextRequest) {
+  // Read the AI key from the environment.
   const apiKey = process.env.ANTHROPIC_API_KEY ?? "";
 
   if (!apiKey) {
@@ -85,7 +93,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Read the multipart form data from the upload page.
+  // Read the form data that came from the upload page.
   let formData: FormData;
   try {
     formData = await request.formData();
@@ -93,6 +101,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
+  // Pull out the simple text fields first.
   const studentName = String(formData.get("studentName") ?? "the student");
   const moduleCode = String(formData.get("module") ?? "General");
   const assignment = String(formData.get("assignment") ?? "Assignment");
@@ -101,12 +110,14 @@ export async function POST(request: NextRequest) {
       "Critical Analysis (30%), Structure & Clarity (25%), Use of Sources (25%), Originality (20%)"
   );
   const tone = String(formData.get("tone") ?? "Constructive");
+  // Pull out the uploaded files.
   const files = formData.getAll("files").filter((item): item is File => item instanceof File);
 
   if (files.length === 0) {
     return NextResponse.json({ error: "Please upload at least one file." }, { status: 400 });
   }
 
+  // Convert the uploaded file content into plain text.
   let submissionText = "";
 
   try {
@@ -118,6 +129,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
+  // Build the prompt that gets sent to Claude.
   const userMessage = `
 Please write feedback for the following student submission.
 
@@ -134,6 +146,7 @@ Write the feedback now. End with MARK: NN% on its own line.
 `.trim();
 
   try {
+    // Send the feedback request to Anthropic.
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -154,6 +167,7 @@ Write the feedback now. End with MARK: NN% on its own line.
       return NextResponse.json({ error: err?.error?.message ?? "AI service error." }, { status: response.status });
     }
 
+    // Read Claude's answer and pull the mark out of the final line.
     const data = await response.json();
     const fullText: string = data.content?.[0]?.text ?? "";
     const markMatch = fullText.match(/MARK:\s*(\d{1,3})\s*%/i);

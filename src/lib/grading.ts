@@ -1,7 +1,7 @@
 // Small grading helpers.
-// These keep the grading display simple and consistent across the app.
+// These helpers keep the mark format the same across the whole app.
 
-// Turn a numeric mark into a common UK university classification.
+// Convert a numeric mark into a simple UK classification label.
 export function classificationFromMark(mark: number) {
   if (mark >= 70) return "First";
   if (mark >= 60) return "2:1";
@@ -10,7 +10,7 @@ export function classificationFromMark(mark: number) {
   return "Fail";
 }
 
-// Support older letter grades as a fallback for existing seeded rows.
+// Convert older seeded letter grades into rough percentage marks.
 function letterGradeToMark(grade: string) {
   const map: Record<string, number> = {
     A: 75,
@@ -27,7 +27,7 @@ function letterGradeToMark(grade: string) {
   return map[grade.toUpperCase()] ?? null;
 }
 
-// Read a mark from either "68%" or an older letter grade.
+// Read a mark from either a percentage string or an older letter grade.
 export function parseMark(grade: string | null) {
   if (!grade) {
     return null;
@@ -46,7 +46,7 @@ export function parseMark(grade: string | null) {
   return letterGradeToMark(grade);
 }
 
-// Show the mark in a nicer student-facing way.
+// Build the text shown in the UI.
 export function formatGradeDisplay(grade: string | null) {
   const mark = parseMark(grade);
 
@@ -57,7 +57,7 @@ export function formatGradeDisplay(grade: string | null) {
   return `${mark}% (${classificationFromMark(mark)})`;
 }
 
-// Choose badge colours based on the numeric mark band.
+// Pick simple badge colours from the mark band.
 export function gradeColour(grade: string | null) {
   const mark = parseMark(grade);
 
