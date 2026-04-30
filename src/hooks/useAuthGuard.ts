@@ -34,9 +34,13 @@ export function useAuthGuard(requiredRole: "lecturer" | "student") {
     }
 
     // All good — store the user so the page can use it.
-    setUser(parsed);
-    setLoading(false);
-  }, []);
+    const timeoutId = window.setTimeout(() => {
+      setUser(parsed);
+      setLoading(false);
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [requiredRole, router]);
 
   return { user, loading };
 }

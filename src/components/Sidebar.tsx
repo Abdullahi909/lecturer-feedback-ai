@@ -29,11 +29,14 @@ export default function Sidebar() {
     // Read the logged-in user's info from localStorage.
     // Must be inside useEffect — localStorage doesn't exist during server rendering.
     const parsed = readStoredUser();
+    const timeoutId = window.setTimeout(() => {
+      if (parsed) {
+        setUserName(parsed.name ?? "");
+        setUserInitials(parsed.initials ?? "?");
+      }
+    }, 0);
 
-    if (parsed) {
-      setUserName(parsed.name ?? "");
-      setUserInitials(parsed.initials ?? "?");
-    }
+    return () => window.clearTimeout(timeoutId);
   }, []);
 
   function handleLogout() {

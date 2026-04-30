@@ -60,17 +60,26 @@ export default function SettingsPage() {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (!raw) return;
 
-    const s = JSON.parse(raw);
-    if (s.title      !== undefined) setTitle(s.title);
-    if (s.firstName  !== undefined) setFirstName(s.firstName);
-    if (s.lastName   !== undefined) setLastName(s.lastName);
-    if (s.email      !== undefined) setEmail(s.email);
-    if (s.department !== undefined) setDepartment(s.department);
+    const timeoutId = window.setTimeout(() => {
+      try {
+        const s = JSON.parse(raw);
 
-    if (s.emailDeadlines   !== undefined) setEmailDeadlines(s.emailDeadlines);
-    if (s.emailSubmissions !== undefined) setEmailSubmissions(s.emailSubmissions);
-    if (s.emailApprovals   !== undefined) setEmailApprovals(s.emailApprovals);
-    if (s.summaryDigest    !== undefined) setSummaryDigest(s.summaryDigest);
+        if (s.title !== undefined) setTitle(s.title);
+        if (s.firstName !== undefined) setFirstName(s.firstName);
+        if (s.lastName !== undefined) setLastName(s.lastName);
+        if (s.email !== undefined) setEmail(s.email);
+        if (s.department !== undefined) setDepartment(s.department);
+
+        if (s.emailDeadlines !== undefined) setEmailDeadlines(s.emailDeadlines);
+        if (s.emailSubmissions !== undefined) setEmailSubmissions(s.emailSubmissions);
+        if (s.emailApprovals !== undefined) setEmailApprovals(s.emailApprovals);
+        if (s.summaryDigest !== undefined) setSummaryDigest(s.summaryDigest);
+      } catch {
+        localStorage.removeItem(SETTINGS_KEY);
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, []);
 
   if (loading || !user) return null;

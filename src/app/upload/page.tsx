@@ -93,12 +93,12 @@ export default function UploadPage() {
 
     try {
       const student = students.find((item) => item.id === selectedStudentId);
-      const module = modules.find((item) => item.id === selectedModuleId);
+      const selectedModule = modules.find((item) => item.id === selectedModuleId);
       const formData = new FormData();
 
       // Send the simple text fields first.
       formData.append("studentName", student?.name ?? "Sample Student");
-      formData.append("module", module?.code ?? "General");
+      formData.append("module", selectedModule?.code ?? "General");
       formData.append("assignment", assignmentName || "Assignment");
       formData.append("criteria", criteria.map((item) => `${item.label} (${item.weight}%)`).join(", "));
       formData.append("tone", tone);

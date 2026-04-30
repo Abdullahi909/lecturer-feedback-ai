@@ -174,12 +174,12 @@ export async function fetchSubmissionDetails() {
 
   const items: SubmissionWithDetails[] = submissions.map((submission) => {
     const student = users.find((user) => user.id === submission.student_id) ?? null;
-    const module = modules.find((item) => item.id === submission.module_id) ?? null;
+    const moduleItem = modules.find((item) => item.id === submission.module_id) ?? null;
 
     return {
       ...submission,
       student,
-      module,
+      module: moduleItem,
     };
   });
 

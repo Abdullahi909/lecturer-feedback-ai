@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
   }
 
   const studentName = String(formData.get("studentName") ?? "the student");
-  const module = String(formData.get("module") ?? "General");
+  const moduleCode = String(formData.get("module") ?? "General");
   const assignment = String(formData.get("assignment") ?? "Assignment");
   const criteria = String(
     formData.get("criteria") ??
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
 Please write feedback for the following student submission.
 
 Student: ${studentName}
-Module: ${module}
+Module: ${moduleCode}
 Assignment: ${assignment}
 Assessment Criteria: ${criteria}
 Requested Tone: ${tone}
