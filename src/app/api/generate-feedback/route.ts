@@ -34,40 +34,6 @@ MARK: NN%
 // Limit the amount of submission text sent to the AI.
 const MAX_SUBMISSION_TEXT = 12000;
 
-// Small server-side polyfills for the PDF library on Vercel.
-// They are only here to stop module-load crashes in environments
-// that do not expose browser geometry classes.
-function ensurePdfGlobals() {
-  if (!("DOMMatrix" in globalThis)) {
-    class SimpleDOMMatrix {
-      multiplySelf() { return this; }
-      preMultiplySelf() { return this; }
-      translateSelf() { return this; }
-      scaleSelf() { return this; }
-      rotateSelf() { return this; }
-      rotateAxisAngleSelf() { return this; }
-      skewXSelf() { return this; }
-      skewYSelf() { return this; }
-      inverse() { return this; }
-      transformPoint(point: unknown) { return point; }
-      static fromMatrix() { return new SimpleDOMMatrix(); }
-    }
-
-    // Add a very small fallback to the global object.
-    (globalThis as { DOMMatrix?: unknown }).DOMMatrix = SimpleDOMMatrix;
-  }
-
-  if (!("ImageData" in globalThis)) {
-    class SimpleImageData {}
-    (globalThis as { ImageData?: unknown }).ImageData = SimpleImageData;
-  }
-
-  if (!("Path2D" in globalThis)) {
-    class SimplePath2D {}
-    (globalThis as { Path2D?: unknown }).Path2D = SimplePath2D;
-  }
-}
-
 // Read one uploaded file and turn it into text.
 async function extractTextFromFile(file: File) {
   const fileName = file.name.toLowerCase();
@@ -83,12 +49,7 @@ async function extractTextFromFile(file: File) {
   }
 
   if (fileName.endsWith(".pdf")) {
-    ensurePdfGlobals();
-    const { PDFParse } = await import("pdf-parse");
-    const parser = new PDFParse({ data: fileBuffer });
-    const result = await parser.getText();
-    await parser.destroy();
-    return result.text;
+    throw new Error("PDF uploads are not supported in the hosted version yet. Please use .docx or .txt files.");
   }
 
   throw new Error(`Unsupported file type: ${file.name}`);

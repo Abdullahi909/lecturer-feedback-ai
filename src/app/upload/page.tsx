@@ -238,14 +238,14 @@ export default function UploadPage() {
 
                 <p style={{ fontSize: "14px", fontWeight: "600", color: "#1e293b" }}>Drag and drop files here</p>
                 <p style={{ fontSize: "13px", color: "#64748b", marginTop: "4px" }}>or click to choose files</p>
-                <p style={{ fontSize: "12px", color: "#94a3b8", marginTop: "10px" }}>Accepted: .pdf, .docx, .txt</p>
+                <p style={{ fontSize: "12px", color: "#94a3b8", marginTop: "10px" }}>Accepted: .docx, .txt</p>
               </div>
 
               <input
                 ref={fileInput}
                 type="file"
                 multiple
-                accept=".pdf,.docx,.txt"
+                accept=".docx,.txt"
                 onChange={(e) => {
                   if (e.target.files) {
                     addFiles(e.target.files);
