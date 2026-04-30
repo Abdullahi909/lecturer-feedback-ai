@@ -5,6 +5,7 @@
 
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { clearStoredUser } from "@/lib/auth";
+import { formatGradeDisplay } from "@/lib/grading";
 import { fetchStudentSubmissionDetails } from "@/lib/supabase";
 import type { SubmissionWithDetails } from "@/lib/types";
 import { CheckCircle, Clock, LogOut } from "lucide-react";
@@ -118,7 +119,7 @@ export default function StudentPage() {
                 <div style={{ display: "flex", alignItems: "center", gap: "12px", flexShrink: 0 }}>
                   {submission.grade && (
                     <span style={{ fontSize: "20px", fontWeight: "700", color: "#1e293b", backgroundColor: "#f1f5f9", padding: "4px 14px", borderRadius: "8px" }}>
-                      {submission.grade}
+                      {formatGradeDisplay(submission.grade)}
                     </span>
                   )}
 

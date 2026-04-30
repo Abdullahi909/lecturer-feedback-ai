@@ -1,12 +1,9 @@
--- Turn on UUID generation support.
 create extension if not exists pgcrypto;
 
--- Remove old demo tables first so the file can be re-run.
 drop table if exists submissions;
 drop table if exists modules;
 drop table if exists users;
 
--- Create the users table.
 create table users (
   id uuid primary key default gen_random_uuid(),
   username text unique not null,
@@ -16,14 +13,12 @@ create table users (
   role text not null check (role in ('lecturer', 'student'))
 );
 
--- Create the modules table.
 create table modules (
   id uuid primary key default gen_random_uuid(),
   code text unique not null,
   name text not null
 );
 
--- Create the submissions table.
 create table submissions (
   id uuid primary key default gen_random_uuid(),
   student_id uuid not null references users(id),
@@ -36,12 +31,10 @@ create table submissions (
   created_at timestamptz not null default now()
 );
 
--- Turn RLS off to keep the student demo simple.
 alter table users disable row level security;
 alter table modules disable row level security;
 alter table submissions disable row level security;
 
--- Add one lecturer and six students.
 insert into users (id, username, password, name, initials, role) values
 ('11111111-1111-1111-1111-111111111111', 'abdullahi', 'password', 'Abdullahi Mohamed', 'AM', 'lecturer'),
 ('22222222-2222-2222-2222-222222222221', 'abdulali', 'password', 'Abdul Ali', 'AA', 'student'),
@@ -51,14 +44,12 @@ insert into users (id, username, password, name, initials, role) values
 ('22222222-2222-2222-2222-222222222225', 'hassanalrashid', 'password', 'Hassan Al-Rashid', 'HA', 'student'),
 ('22222222-2222-2222-2222-222222222226', 'jamescarter', 'password', 'James Carter', 'JC', 'student');
 
--- Add the four demo modules.
 insert into modules (id, code, name) values
 ('33333333-3333-3333-3333-333333333331', 'CS101', 'Introduction to Computing'),
 ('33333333-3333-3333-3333-333333333332', 'CS201', 'Data Structures & Algorithms'),
 ('33333333-3333-3333-3333-333333333333', 'CS310', 'Software Engineering'),
 ('33333333-3333-3333-3333-333333333334', 'CS415', 'Machine Learning');
 
--- Add demo submissions.
 insert into submissions (id, student_id, module_id, assignment, submitted_date, status, feedback, grade, created_at) values
 (
   '44444444-4444-4444-4444-444444444441',

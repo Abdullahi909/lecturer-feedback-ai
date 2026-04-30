@@ -6,46 +6,12 @@
 import Sidebar from "@/components/Sidebar";
 import StatCard from "@/components/StatCard";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { classificationFromMark, formatGradeDisplay, gradeColour, parseMark } from "@/lib/grading";
 import { fetchApprovedSubmissionDetails } from "@/lib/supabase";
 import type { SubmissionWithDetails } from "@/lib/types";
 import { CheckCircle, Send, BarChart2, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-
-function gradeColour(grade: string) {
-  if (grade.startsWith("A")) return { color: "#16a34a", bg: "#dcfce7" };
-  if (grade.startsWith("B")) return { color: "#2563eb", bg: "#dbeafe" };
-  if (grade.startsWith("C")) return { color: "#d97706", bg: "#fef3c7" };
-  return { color: "#dc2626", bg: "#fee2e2" };
-}
-
-function gradeToPoints(grade: string) {
-  const map: Record<string, number> = {
-    A: 5,
-    "A-": 4.7,
-    "B+": 4.3,
-    B: 4,
-    "B-": 3.7,
-    "C+": 3.3,
-    C: 3,
-    D: 2,
-    F: 0,
-  };
-
-  return map[grade] ?? 0;
-}
-
-function pointsToGrade(points: number) {
-  if (points >= 4.8) return "A";
-  if (points >= 4.5) return "A-";
-  if (points >= 4.15) return "B+";
-  if (points >= 3.85) return "B";
-  if (points >= 3.5) return "B-";
-  if (points >= 3.15) return "C+";
-  if (points >= 2.5) return "C";
-  if (points >= 1) return "D";
-  return "F";
-}
 
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString("en-GB", {
@@ -81,15 +47,15 @@ export default function ApprovedPage() {
   if (loading || !user) return null;
 
   const gradeValues = approvedSubmissions
-    .map((item) => item.grade)
-    .filter((grade): grade is string => Boolean(grade));
+    .map((item) => parseMark(item.grade))
+    .filter((mark): mark is number => mark !== null);
 
-  const averagePoints =
+  const averageMark =
     gradeValues.length === 0
       ? 0
-      : gradeValues.reduce((total, grade) => total + gradeToPoints(grade), 0) / gradeValues.length;
+      : gradeValues.reduce((total, mark) => total + mark, 0) / gradeValues.length;
 
-  const averageGrade = gradeValues.length === 0 ? "-" : pointsToGrade(averagePoints);
+  const averageGrade = gradeValues.length === 0 ? "-" : `${Math.round(averageMark)}% (${classificationFromMark(averageMark)})`;
 
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
@@ -106,7 +72,7 @@ export default function ApprovedPage() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px", marginBottom: "32px" }}>
           <StatCard label="Total Approved" value={approvedSubmissions.length} icon={CheckCircle} iconColor="#16a34a" iconBg="#dcfce7" note="This term" />
           <StatCard label="Sent to Students" value={approvedSubmissions.length} icon={Send} iconColor="#2563eb" iconBg="#dbeafe" note="Approved records" />
-          <StatCard label="Average Grade" value={averageGrade} icon={BarChart2} iconColor="#7c3aed" iconBg="#ede9fe" note="Across approved work" />
+          <StatCard label="Average Mark" value={averageGrade} icon={BarChart2} iconColor="#7c3aed" iconBg="#ede9fe" note="Across approved work" />
         </div>
 
         {pageLoading && (
@@ -141,7 +107,7 @@ export default function ApprovedPage() {
             </thead>
             <tbody>
               {approvedSubmissions.map((submission, index) => {
-                const colours = gradeColour(submission.grade ?? "D");
+                const colours = gradeColour(submission.grade);
 
                 return (
                   <tr key={submission.id} style={{ borderTop: index === 0 ? "none" : "1px solid #f1f5f9" }}>
@@ -155,7 +121,7 @@ export default function ApprovedPage() {
                     <td style={{ padding: "14px 20px", fontSize: "14px", color: "#1e293b" }}>{submission.assignment}</td>
                     <td style={{ padding: "14px 20px" }}>
                       <span style={{ fontSize: "13px", fontWeight: "700", color: colours.color, backgroundColor: colours.bg, padding: "3px 10px", borderRadius: "20px" }}>
-                        {submission.grade ?? "-"}
+                        {formatGradeDisplay(submission.grade)}
                       </span>
                     </td>
                     <td style={{ padding: "14px 20px", fontSize: "13px", color: "#64748b" }}>{formatDate(submission.submitted_date)}</td>

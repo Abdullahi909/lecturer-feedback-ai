@@ -5,6 +5,7 @@
 
 import Sidebar from "@/components/Sidebar";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { formatGradeDisplay } from "@/lib/grading";
 import { createSubmission, fetchModules, fetchUsers } from "@/lib/supabase";
 import type { DatabaseModule, PublicUser } from "@/lib/types";
 import { Upload, FileText, X, Info, Loader2, CheckCircle, AlertCircle } from "lucide-react";
@@ -337,7 +338,7 @@ export default function UploadPage() {
                   </div>
 
                   <span style={{ fontSize: "15px", fontWeight: "700", color: "#1e293b", backgroundColor: "#e2e8f0", padding: "2px 10px", borderRadius: "6px" }}>
-                    {result.grade}
+                    {formatGradeDisplay(result.grade)}
                   </span>
                 </div>
 

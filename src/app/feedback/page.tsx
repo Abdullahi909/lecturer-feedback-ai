@@ -8,6 +8,7 @@
 
 import Sidebar from "@/components/Sidebar";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { formatGradeDisplay } from "@/lib/grading";
 import { fetchFeedbackReviewItems, updateSubmission } from "@/lib/supabase";
 import type { SubmissionWithDetails } from "@/lib/types";
 import { CheckCircle, XCircle, Edit3, User, X } from "lucide-react";
@@ -336,8 +337,8 @@ export default function FeedbackPage() {
                   </div>
 
                   <div style={{ textAlign: "right" }}>
-                    <p style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.05em" }}>Suggested Grade</p>
-                    <p style={{ fontSize: "26px", fontWeight: "700", color: "#1e293b", marginTop: "2px" }}>{selectedItem.grade ?? "-"}</p>
+                    <p style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.05em" }}>Suggested Mark</p>
+                    <p style={{ fontSize: "26px", fontWeight: "700", color: "#1e293b", marginTop: "2px" }}>{formatGradeDisplay(selectedItem.grade)}</p>
                   </div>
                 </div>
 

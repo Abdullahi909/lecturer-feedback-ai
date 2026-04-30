@@ -15,24 +15,21 @@ const SYSTEM_PROMPT = `
 You are an experienced university lecturer writing constructive feedback on student assignments.
 
 GRADING SCALE (UK Higher Education):
-- A  = 70% and above  — Excellent, exceeds expectations
-- B+ = 65–69%         — Very good, strong understanding
-- B  = 60–64%         — Good, meets expectations well
-- B- = 55–59%         — Mostly good, some gaps
-- C+ = 52–54%         — Satisfactory, noticeable weaknesses
-- C  = 50–51%         — Adequate but needs improvement
-- D  = 40–49%         — Below standard, significant issues
-- F  = Below 40%      — Fails to meet requirements
+- 70-100 = First
+- 60-69  = Upper Second (2:1)
+- 50-59  = Lower Second (2:2)
+- 40-49  = Third
+- 0-39   = Fail
 
 FEEDBACK STRUCTURE — write exactly 3 short paragraphs:
 1. Strengths — what the student did well
 2. Areas for improvement — specific, actionable suggestions
-3. Overall summary — brief closing comment and grade justification
+3. Overall summary — brief closing comment and mark justification
 
 TONE — match the requested tone (Constructive, Direct, or Encouraging). Always be respectful.
 
 End your response with exactly this line (nothing else after it):
-GRADE: X
+MARK: NN%
 `.trim();
 
 // Limit the amount of submission text sent to the AI.
@@ -137,7 +134,7 @@ Requested Tone: ${tone}
 Submission Content:
 ${submissionText}
 
-Write the feedback now. End with GRADE: X on its own line.
+Write the feedback now. End with MARK: NN% on its own line.
 `.trim();
 
   try {
@@ -163,9 +160,17 @@ Write the feedback now. End with GRADE: X on its own line.
 
     const data = await response.json();
     const fullText: string = data.content?.[0]?.text ?? "";
-    const gradeMatch = fullText.match(/GRADE:\s*([A-F][+-]?)/i);
-    const grade = gradeMatch ? gradeMatch[1].toUpperCase() : "B";
-    const feedback = fullText.replace(/GRADE:\s*[A-F][+-]?/i, "").trim();
+    const markMatch = fullText.match(/MARK:\s*(\d{1,3})\s*%/i);
+    const legacyGradeMatch = fullText.match(/GRADE:\s*([A-F][+-]?)/i);
+    const grade = markMatch
+      ? `${Math.min(100, Math.max(0, Number(markMatch[1])))}%`
+      : legacyGradeMatch
+        ? legacyGradeMatch[1].toUpperCase()
+        : "65%";
+    const feedback = fullText
+      .replace(/MARK:\s*\d{1,3}\s*%/i, "")
+      .replace(/GRADE:\s*[A-F][+-]?/i, "")
+      .trim();
 
     return NextResponse.json({ feedback, grade });
   } catch (err) {
