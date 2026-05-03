@@ -4,19 +4,13 @@
 // This version sends the real uploaded files to the API route.
 
 import Sidebar from "@/components/Sidebar";
+import { BAYESIAN_ESSAY_BRIEF, BAYESIAN_ESSAY_RUBRIC, GENERIC_RUBRIC_TEMPLATE } from "@/lib/rubric-presets";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { formatGradeDisplay } from "@/lib/grading";
 import { createSubmission, fetchModules, fetchUsers } from "@/lib/supabase";
 import type { DatabaseModule, PublicUser } from "@/lib/types";
 import { Upload, FileText, X, Info, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-
-const criteria = [
-  { label: "Critical Analysis", weight: 30 },
-  { label: "Structure & Clarity", weight: 25 },
-  { label: "Use of Sources", weight: 25 },
-  { label: "Originality", weight: 20 },
-];
 
 export default function UploadPage() {
   const { user, loading } = useAuthGuard("lecturer");
@@ -25,6 +19,8 @@ export default function UploadPage() {
   const [assignmentName, setAssignmentName] = useState("");
   const [deadline, setDeadline] = useState("");
   const [tone, setTone] = useState("Constructive");
+  const [assignmentBrief, setAssignmentBrief] = useState("");
+  const [rubric, setRubric] = useState(GENERIC_RUBRIC_TEMPLATE);
   const [students, setStudents] = useState<PublicUser[]>([]);
   const [modules, setModules] = useState<DatabaseModule[]>([]);
   const [files, setFiles] = useState<File[]>([]);
@@ -101,7 +97,8 @@ export default function UploadPage() {
       formData.append("studentName", student?.name ?? "Sample Student");
       formData.append("module", selectedModule?.code ?? "General");
       formData.append("assignment", assignmentName || "Assignment");
-      formData.append("criteria", criteria.map((item) => `${item.label} (${item.weight}%)`).join(", "));
+      formData.append("assignmentBrief", assignmentBrief);
+      formData.append("rubric", rubric);
       formData.append("tone", tone);
 
       // Then send the uploaded files themselves.
@@ -208,6 +205,42 @@ export default function UploadPage() {
                   <label style={{ display: "block", fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "6px" }}>Submission Date</label>
                   <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #d1d5db", fontSize: "14px", color: "#1e293b", outline: "none", boxSizing: "border-box" }} />
                 </div>
+
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px", gap: "12px" }}>
+                    <label style={{ display: "block", fontSize: "13px", fontWeight: "500", color: "#374151" }}>Assignment Brief</label>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAssignmentName("Bayesian AI Essay");
+                        setAssignmentBrief(BAYESIAN_ESSAY_BRIEF);
+                        setRubric(BAYESIAN_ESSAY_RUBRIC);
+                      }}
+                      style={{ border: "1px solid #cbd5e1", backgroundColor: "#fff", color: "#334155", fontSize: "12px", fontWeight: "600", borderRadius: "999px", padding: "6px 10px", cursor: "pointer" }}
+                    >
+                      Load Bayesian Essay Example
+                    </button>
+                  </div>
+
+                  <textarea
+                    value={assignmentBrief}
+                    onChange={(e) => setAssignmentBrief(e.target.value)}
+                    placeholder="Paste the assignment brief here. The AI will use it to judge whether the work answered the task."
+                    rows={10}
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #d1d5db", fontSize: "14px", color: "#1e293b", outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: "1.5" }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "6px" }}>Rubric</label>
+                  <textarea
+                    value={rubric}
+                    onChange={(e) => setRubric(e.target.value)}
+                    rows={16}
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #d1d5db", fontSize: "14px", color: "#1e293b", outline: "none", boxSizing: "border-box", resize: "vertical", lineHeight: "1.5" }}
+                  />
+                </div>
               </div>
             </div>
 
@@ -274,21 +307,16 @@ export default function UploadPage() {
           </div>
 
           <div style={{ backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "24px" }}>
-            <h2 style={{ fontSize: "15px", fontWeight: "600", color: "#1e293b", marginBottom: "6px" }}>Assessment Criteria</h2>
-            <p style={{ fontSize: "13px", color: "#64748b", marginBottom: "20px" }}>Weights sent to the AI when generating feedback.</p>
+            <h2 style={{ fontSize: "15px", fontWeight: "600", color: "#1e293b", marginBottom: "6px" }}>Assessment Setup</h2>
+            <p style={{ fontSize: "13px", color: "#64748b", marginBottom: "20px" }}>
+              The AI will assess the work against the lecturer&apos;s assignment brief and rubric, not a hardcoded grade model.
+            </p>
 
-            {criteria.map((item) => (
-              <div key={item.label} style={{ marginBottom: "16px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-                  <span style={{ fontSize: "13px", color: "#374151", fontWeight: "500" }}>{item.label}</span>
-                  <span style={{ fontSize: "13px", color: "#64748b" }}>{item.weight}%</span>
-                </div>
-
-                <div style={{ height: "6px", backgroundColor: "#f1f5f9", borderRadius: "99px", overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${item.weight}%`, backgroundColor: "#3b82f6", borderRadius: "99px" }} />
-                </div>
-              </div>
-            ))}
+            <div style={{ borderRadius: "8px", border: "1px solid #dbeafe", backgroundColor: "#eff6ff", padding: "12px 14px", marginBottom: "16px" }}>
+              <p style={{ fontSize: "12px", color: "#1d4ed8", lineHeight: "1.6", margin: 0 }}>
+                Best results come from a rubric that lists the criteria, the marks available, and what strong vs weak work looks like.
+              </p>
+            </div>
 
             <div style={{ marginTop: "20px" }}>
               <label style={{ display: "block", fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "6px" }}>Feedback Tone</label>
@@ -308,7 +336,7 @@ export default function UploadPage() {
 
             <button
               onClick={handleGenerate}
-              disabled={generating || saving || !selectedStudentId || !selectedModuleId || files.length === 0}
+              disabled={generating || saving || !selectedStudentId || !selectedModuleId || files.length === 0 || !assignmentBrief.trim() || !rubric.trim()}
               style={{ width: "100%", marginTop: "16px", padding: "12px", borderRadius: "8px", backgroundColor: generating || saving ? "#475569" : "#1e293b", color: "#fff", fontSize: "14px", fontWeight: "600", border: "none", cursor: generating || saving ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
             >
               {(generating || saving) && <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} />}

@@ -17,7 +17,7 @@ const MODEL = "claude-haiku-4-5-20251001";
 
 // System prompt — tells Claude how to behave and grade.
 const SYSTEM_PROMPT = `
-You are an experienced university lecturer writing constructive feedback on student assignments.
+You are an experienced university lecturer grading student assignments against a lecturer-provided brief and rubric.
 
 GRADING SCALE (UK Higher Education):
 - 70-100 = First
@@ -26,15 +26,37 @@ GRADING SCALE (UK Higher Education):
 - 40-49  = Third
 - 0-39   = Fail
 
-FEEDBACK STRUCTURE — write exactly 3 short paragraphs:
-1. Strengths — what the student did well
-2. Areas for improvement — specific, actionable suggestions
-3. Overall summary — brief closing comment and mark justification
+IMPORTANT RULES:
+- Grade the work against the lecturer's rubric and assignment brief.
+- Do not invent new criteria.
+- If the work misses part of the brief, reflect that in the mark and feedback.
+- Be realistic. Do not over-mark weak referencing, weak structure, or shallow analysis.
+- If the rubric has weighted criteria, use them sensibly when deciding the final mark.
+- Be conservative. Do not give high marks just because the essay is readable or organised.
+- If one major criterion is clearly weak, do not let stronger criteria cancel it out too generously.
+- If referencing is explicitly assessed and is clearly poor, the final mark should usually stay in the low 60s or below unless the rest of the work is unusually strong.
+
+FEEDBACK STRUCTURE:
+1. Overall judgement — one short paragraph
+2. Strengths — one short paragraph
+3. Areas for improvement — one short paragraph
+4. Rubric breakdown — a short bullet list, one bullet per criterion with brief reason and awarded marks
+5. Final justification — one short paragraph explaining the final band and mark
+
+LENGTH RULE:
+- Keep the whole response concise.
+- Use short paragraphs.
+- Keep each rubric bullet to one sentence.
+- Stay under roughly 450 words so the final grade lines are always included.
+
+RUBRIC BREAKDOWN FORMAT:
+- Criterion name: awarded/weight - short reason
+
+FINAL LINES:
+TOTAL: NN/100
+MARK: NN%
 
 TONE — match the requested tone (Constructive, Direct, or Encouraging). Always be respectful.
-
-End your response with exactly this line (nothing else after it):
-MARK: NN%
 `.trim();
 
 // Limit the text length so a huge file does not create a giant AI request.
@@ -105,11 +127,18 @@ export async function POST(request: NextRequest) {
   const studentName = String(formData.get("studentName") ?? "the student");
   const moduleCode = String(formData.get("module") ?? "General");
   const assignment = String(formData.get("assignment") ?? "Assignment");
-  const criteria = String(
-    formData.get("criteria") ??
-      "Critical Analysis (30%), Structure & Clarity (25%), Use of Sources (25%), Originality (20%)"
-  );
+  const assignmentBrief = String(formData.get("assignmentBrief") ?? "").trim();
+  const rubric = String(formData.get("rubric") ?? "").trim();
   const tone = String(formData.get("tone") ?? "Constructive");
+
+  if (!assignmentBrief) {
+    return NextResponse.json({ error: "Please add the assignment brief." }, { status: 400 });
+  }
+
+  if (!rubric) {
+    return NextResponse.json({ error: "Please add the marking rubric." }, { status: 400 });
+  }
+
   // Pull out the uploaded files.
   const files = formData.getAll("files").filter((item): item is File => item instanceof File);
 
@@ -136,13 +165,20 @@ Please write feedback for the following student submission.
 Student: ${studentName}
 Module: ${moduleCode}
 Assignment: ${assignment}
-Assessment Criteria: ${criteria}
 Requested Tone: ${tone}
+
+Assignment Brief:
+${assignmentBrief}
+
+Marking Rubric:
+${rubric}
 
 Submission Content:
 ${submissionText}
 
-Write the feedback now. End with MARK: NN% on its own line.
+Write the feedback now. Grade it against the brief and rubric.
+Make sure the TOTAL equals the sum of the awarded criterion marks.
+If the rubric weights do not total 100, still show the true total and convert it fairly into a percentage for MARK.
 `.trim();
 
   try {
@@ -156,7 +192,7 @@ Write the feedback now. End with MARK: NN% on its own line.
       },
       body: JSON.stringify({
         model: MODEL,
-        max_tokens: 900,
+        max_tokens: 1400,
         system: SYSTEM_PROMPT,
         messages: [{ role: "user", content: userMessage }],
       }),
@@ -170,14 +206,46 @@ Write the feedback now. End with MARK: NN% on its own line.
     // Read Claude's answer and pull the mark out of the final line.
     const data = await response.json();
     const fullText: string = data.content?.[0]?.text ?? "";
+    const awardedMarks = Array.from(fullText.matchAll(/(\d{1,3})\s*\/\s*(\d{1,3})/g))
+      .map((match) => ({
+        awarded: Number(match[1]),
+        weight: Number(match[2]),
+      }))
+      .filter((item) => !Number.isNaN(item.awarded) && !Number.isNaN(item.weight) && item.awarded >= 0 && item.weight > 0 && item.awarded <= item.weight);
+    const summedAwardedMarks = awardedMarks.reduce((total, item) => total + item.awarded, 0);
+    const summedWeights = awardedMarks.reduce((total, item) => total + item.weight, 0);
+    const totalMatch = fullText.match(/TOTAL:\s*(\d{1,3})\s*\/\s*(\d{1,3})/i);
     const markMatch = fullText.match(/MARK:\s*(\d{1,3})\s*%/i);
     const legacyGradeMatch = fullText.match(/GRADE:\s*([A-F][+-]?)/i);
-    const grade = markMatch
-      ? `${Math.min(100, Math.max(0, Number(markMatch[1])))}%`
+    const rubricPercentFromBreakdown =
+      summedWeights > 0
+        ? Math.round((summedAwardedMarks / summedWeights) * 100)
+        : null;
+    const rubricPercentFromTotal =
+      totalMatch && Number(totalMatch[2]) > 0
+        ? Math.round((Number(totalMatch[1]) / Number(totalMatch[2])) * 100)
+        : null;
+    const conservativeMark =
+      rubricPercentFromBreakdown !== null && markMatch
+        ? Math.min(rubricPercentFromBreakdown, Number(markMatch[1]))
+        : null;
+    const parsedMark =
+      conservativeMark !== null
+        ? conservativeMark
+        : rubricPercentFromBreakdown !== null
+          ? rubricPercentFromBreakdown
+          : rubricPercentFromTotal !== null
+            ? rubricPercentFromTotal
+            : markMatch
+              ? Number(markMatch[1])
+              : null;
+    const grade = parsedMark !== null
+      ? `${Math.min(100, Math.max(0, parsedMark))}%`
       : legacyGradeMatch
         ? legacyGradeMatch[1].toUpperCase()
-        : "65%";
+        : "60%";
     const feedback = fullText
+      .replace(/TOTAL:\s*\d{1,3}\s*\/\s*\d{1,3}/i, "")
       .replace(/MARK:\s*\d{1,3}\s*%/i, "")
       .replace(/GRADE:\s*[A-F][+-]?/i, "")
       .trim();

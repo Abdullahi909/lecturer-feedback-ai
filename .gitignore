@@ -34,6 +34,12 @@ yarn-error.log*
 .claude/
 .claude/worktrees/
 
+# local report drafts
+REPORT_DRAFT.md
+REPORT_DRAFT.docx
+report-assets/
+~$PORT_DRAFT.docx
+
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example
