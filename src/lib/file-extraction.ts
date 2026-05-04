@@ -1,16 +1,15 @@
 // Shared file extraction helper used by both student submission
 // and lecturer grading routes.
 
-import path from "node:path";
-import { pathToFileURL } from "node:url";
 import mammoth from "mammoth";
-import { getDocument, GlobalWorkerOptions } from "pdfjs-dist/legacy/build/pdf.mjs";
+import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
+import { WorkerMessageHandler } from "pdfjs-dist/legacy/build/pdf.worker.mjs";
 
-// Point PDF.js at the real worker module on disk so PDF parsing works
-// in the Next.js server runtime as well as local Node tests.
-GlobalWorkerOptions.workerSrc = pathToFileURL(
-  path.join(process.cwd(), "node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs")
-).href;
+// Give PDF.js the worker handler directly so it never has to dynamically
+// look for a worker file at runtime. That keeps the parser much safer on Vercel.
+(globalThis as typeof globalThis & {
+  pdfjsWorker?: { WorkerMessageHandler: typeof WorkerMessageHandler };
+}).pdfjsWorker = { WorkerMessageHandler };
 
 // Limit the text length so a huge file does not create a giant AI request.
 export const MAX_SUBMISSION_TEXT = 12000;
@@ -39,6 +38,7 @@ async function extractPdfText(fileBuffer: Buffer) {
     }
   }
 
+  await loadingTask.destroy();
   return parts.join("\n\n");
 }
 
