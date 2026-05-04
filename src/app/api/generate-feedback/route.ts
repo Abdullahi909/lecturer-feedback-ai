@@ -7,13 +7,17 @@
 // 4. return feedback and a mark
 
 import { NextRequest, NextResponse } from "next/server";
-import { extractSubmissionBundle, MAX_SUBMISSION_TEXT } from "@/lib/file-extraction";
+import {
+  buildSubmissionBundle,
+  MAX_SUBMISSION_TEXT,
+  type SubmissionDocument,
+} from "@/lib/file-extraction";
 
 // Use the Node runtime because file parsing needs Buffer support.
 export const runtime = "nodejs";
 
 // Keep the model in one place so it is easy to change later.
-const MODEL = "claude-haiku-4-5-20251001";
+const MODEL = "claude-sonnet-4-20250514";
 
 // System prompt — tells Claude how to behave and grade.
 const SYSTEM_PROMPT = `
@@ -86,6 +90,7 @@ export async function POST(request: NextRequest) {
   const rubric = String(formData.get("rubric") ?? "").trim();
   const tone = String(formData.get("tone") ?? "Constructive");
   const directSubmissionText = String(formData.get("submissionText") ?? "").trim();
+  const submissionDocumentsText = String(formData.get("submissionDocuments") ?? "").trim();
 
   if (!assignmentBrief) {
     return NextResponse.json({ error: "Please add the assignment brief." }, { status: 400 });
@@ -107,13 +112,21 @@ export async function POST(request: NextRequest) {
 
   // Convert the uploaded file content into plain text.
   let submissionText = "";
+  let submissionDocuments: SubmissionDocument[] = [];
 
   try {
+    if (submissionDocumentsText) {
+      submissionDocuments = JSON.parse(submissionDocumentsText) as SubmissionDocument[];
+    }
+
     if (directSubmissionText) {
       submissionText = directSubmissionText.slice(0, MAX_SUBMISSION_TEXT);
-    } else {
-      const bundle = await extractSubmissionBundle(files);
+    }
+
+    if (files.length > 0) {
+      const bundle = await buildSubmissionBundle(files);
       submissionText = bundle.text;
+      submissionDocuments = bundle.documents;
     }
   } catch (error) {
     const message =
@@ -123,7 +136,20 @@ export async function POST(request: NextRequest) {
   }
 
   // Build the prompt that gets sent to Claude.
-  const userMessage = `
+  const contentBlocks: Array<Record<string, unknown>> = [];
+
+  for (const document of submissionDocuments) {
+    contentBlocks.push({
+      type: "document",
+      source: {
+        type: "base64",
+        media_type: document.mediaType,
+        data: document.data,
+      },
+    });
+  }
+
+  const promptText = `
 Please write feedback for the following student submission.
 
 Student: ${studentName}
@@ -137,13 +163,17 @@ ${assignmentBrief}
 Marking Rubric:
 ${rubric}
 
-Submission Content:
-${submissionText}
+${submissionText ? `Submission Content:\n${submissionText}\n` : ""}
 
 Write the feedback now. Grade it against the brief and rubric.
 Make sure the TOTAL equals the sum of the awarded criterion marks.
 If the rubric weights do not total 100, still show the true total and convert it fairly into a percentage for MARK.
 `.trim();
+
+  contentBlocks.push({
+    type: "text",
+    text: promptText,
+  });
 
   try {
     // Send the feedback request to Anthropic.
@@ -158,7 +188,7 @@ If the rubric weights do not total 100, still show the true total and convert it
         model: MODEL,
         max_tokens: 1400,
         system: SYSTEM_PROMPT,
-        messages: [{ role: "user", content: userMessage }],
+        messages: [{ role: "user", content: contentBlocks }],
       }),
     });
 

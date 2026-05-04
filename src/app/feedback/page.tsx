@@ -242,6 +242,7 @@ export default function FeedbackPage() {
       formData.append("rubric", rubric);
       formData.append("tone", tone);
       formData.append("submissionText", rawSubmission.text);
+      formData.append("submissionDocuments", JSON.stringify(rawSubmission.documents));
 
       const response = await fetch("/api/generate-feedback", {
         method: "POST",
@@ -441,9 +442,15 @@ export default function FeedbackPage() {
                       </p>
 
                       <div style={{ backgroundColor: "#f8fafc", borderRadius: "8px", padding: "14px", border: "1px solid #e2e8f0", maxHeight: "220px", overflowY: "auto" }}>
-                        <p style={{ fontSize: "13px", color: "#374151", lineHeight: "1.7", whiteSpace: "pre-line" }}>
-                          {rawSubmission.text}
-                        </p>
+                        {rawSubmission.text ? (
+                          <p style={{ fontSize: "13px", color: "#374151", lineHeight: "1.7", whiteSpace: "pre-line" }}>
+                            {rawSubmission.text}
+                          </p>
+                        ) : (
+                          <p style={{ fontSize: "13px", color: "#64748b", lineHeight: "1.7" }}>
+                            This submission was uploaded as a PDF. Claude will read the PDF directly when you generate feedback.
+                          </p>
+                        )}
                       </div>
                     </div>
 

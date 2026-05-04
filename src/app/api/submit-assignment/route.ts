@@ -2,7 +2,7 @@
 // This keeps file parsing on the server and creates a pending submission row.
 
 import { NextRequest, NextResponse } from "next/server";
-import { extractSubmissionBundle } from "@/lib/file-extraction";
+import { buildSubmissionBundle } from "@/lib/file-extraction";
 import { createSubmission } from "@/lib/supabase";
 import { buildRawSubmissionContent } from "@/lib/submission-content";
 
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const bundle = await extractSubmissionBundle(files);
+    const bundle = await buildSubmissionBundle(files);
 
     const created = await createSubmission({
       student_id: studentId,
@@ -46,7 +46,11 @@ export async function POST(request: NextRequest) {
       assignment,
       submitted_date: submittedDate,
       status: "pending",
-      feedback: buildRawSubmissionContent(bundle.text, bundle.fileNames),
+      feedback: buildRawSubmissionContent({
+        text: bundle.text,
+        fileNames: bundle.fileNames,
+        documents: bundle.documents,
+      }),
       grade: null,
     });
 

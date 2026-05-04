@@ -3,18 +3,20 @@
 // in the feedback field until a lecturer generates real feedback.
 
 import type { SubmissionWithDetails } from "@/lib/types";
+import type { SubmissionDocument } from "@/lib/file-extraction";
 
 const RAW_SUBMISSION_PREFIX = "__RAW_SUBMISSION__:";
 
 export type RawSubmissionContent = {
   text: string;
   fileNames: string[];
+  documents: SubmissionDocument[];
 };
 
 export type SubmissionStage = "submitted" | "generated" | "approved" | "rejected";
 
-export function buildRawSubmissionContent(text: string, fileNames: string[]) {
-  return `${RAW_SUBMISSION_PREFIX}${JSON.stringify({ text, fileNames })}`;
+export function buildRawSubmissionContent(content: RawSubmissionContent) {
+  return `${RAW_SUBMISSION_PREFIX}${JSON.stringify(content)}`;
 }
 
 export function readRawSubmissionContent(
@@ -28,8 +30,12 @@ export function readRawSubmissionContent(
   try {
     const parsed = JSON.parse(feedback.slice(RAW_SUBMISSION_PREFIX.length)) as RawSubmissionContent;
 
-    if (!parsed.text || !Array.isArray(parsed.fileNames)) {
+    if (typeof parsed.text !== "string" || !Array.isArray(parsed.fileNames)) {
       return null;
+    }
+
+    if (!Array.isArray(parsed.documents)) {
+      parsed.documents = [];
     }
 
     return parsed;
