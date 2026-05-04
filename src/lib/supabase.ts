@@ -201,5 +201,5 @@ export async function fetchApprovedSubmissionDetails() {
 // Return items that already have feedback text and a mark.
 export async function fetchFeedbackReviewItems() {
   const items = await fetchSubmissionDetails();
-  return items.filter((item) => item.feedback && item.grade);
+  return items.filter((item) => item.status === "pending" || item.status === "approved" || item.status === "rejected");
 }

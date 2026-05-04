@@ -12,7 +12,7 @@ import { clearStoredUser, readStoredUser } from "@/lib/auth";
 // Nav links — label, URL path, and icon for each page.
 const navItems = [
   { label: "Dashboard",          href: "/dashboard", icon: LayoutDashboard },
-  { label: "Upload Assignments", href: "/upload",    icon: Upload           },
+  { label: "Quick Grade",        href: "/upload",    icon: Upload           },
   { label: "Feedback Review",    href: "/feedback",  icon: FileText         },
   { label: "Approved",           href: "/approved",  icon: CheckSquare      },
   { label: "Settings",           href: "/settings",  icon: Settings         },

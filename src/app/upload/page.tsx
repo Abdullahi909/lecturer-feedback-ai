@@ -12,6 +12,8 @@ import type { DatabaseModule, PublicUser } from "@/lib/types";
 import { Upload, FileText, X, Info, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+const allowedFileEndings = [".pdf", ".docx", ".txt"];
+
 export default function UploadPage() {
   const { user, loading } = useAuthGuard("lecturer");
   const [selectedStudentId, setSelectedStudentId] = useState("");
@@ -72,9 +74,37 @@ export default function UploadPage() {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
+  function isAllowedFile(file: File) {
+    const name = file.name.toLowerCase();
+    return allowedFileEndings.some((ending) => name.endsWith(ending));
+  }
+
   function addFiles(fileList: FileList) {
-    const newFiles = Array.from(fileList);
-    setFiles((current) => [...current, ...newFiles]);
+    const incomingFiles = Array.from(fileList);
+    const validFiles = incomingFiles.filter(isAllowedFile);
+    const invalidFiles = incomingFiles.filter((file) => !isAllowedFile(file));
+
+    if (invalidFiles.length > 0) {
+      setApiError("Only PDF, DOCX, and TXT files can be uploaded.");
+    } else {
+      setApiError("");
+    }
+
+    setFiles((current) => {
+      const nextFiles = [...current];
+
+      for (const file of validFiles) {
+        const duplicate = nextFiles.find(
+          (item) => item.name === file.name && item.size === file.size
+        );
+
+        if (!duplicate) {
+          nextFiles.push(file);
+        }
+      }
+
+      return nextFiles;
+    });
   }
 
   function removeFile(index: number) {
@@ -150,9 +180,9 @@ export default function UploadPage() {
 
       <main style={{ flex: 1, padding: "32px", overflowY: "auto" }}>
         <div style={{ marginBottom: "28px" }}>
-          <h1 style={{ fontSize: "22px", fontWeight: "700", color: "#1e293b" }}>Upload Assignments</h1>
+          <h1 style={{ fontSize: "22px", fontWeight: "700", color: "#1e293b" }}>Quick Grade</h1>
           <p style={{ fontSize: "14px", color: "#64748b", marginTop: "4px" }}>
-            Upload student submissions and configure the assessment before generating AI feedback.
+            Grade a file directly as a lecturer. For the normal workflow, students submit first and you mark them from the review queue.
           </p>
         </div>
 
@@ -271,14 +301,14 @@ export default function UploadPage() {
 
                 <p style={{ fontSize: "14px", fontWeight: "600", color: "#1e293b" }}>Drag and drop files here</p>
                 <p style={{ fontSize: "13px", color: "#64748b", marginTop: "4px" }}>or click to choose files</p>
-                <p style={{ fontSize: "12px", color: "#94a3b8", marginTop: "10px" }}>Accepted: .docx, .txt</p>
+                <p style={{ fontSize: "12px", color: "#94a3b8", marginTop: "10px" }}>Accepted: .pdf, .docx, .txt</p>
               </div>
 
               <input
                 ref={fileInput}
                 type="file"
                 multiple
-                accept=".docx,.txt"
+                accept=".pdf,.docx,.txt"
                 onChange={(e) => {
                   if (e.target.files) {
                     addFiles(e.target.files);

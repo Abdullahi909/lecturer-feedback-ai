@@ -9,13 +9,17 @@
 import Sidebar from "@/components/Sidebar";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { formatGradeDisplay } from "@/lib/grading";
+import { BAYESIAN_ESSAY_BRIEF, BAYESIAN_ESSAY_RUBRIC, GENERIC_RUBRIC_TEMPLATE } from "@/lib/rubric-presets";
+import { getSubmissionStage, readRawSubmissionContent } from "@/lib/submission-content";
 import { fetchFeedbackReviewItems, updateSubmission } from "@/lib/supabase";
 import type { SubmissionWithDetails } from "@/lib/types";
-import { CheckCircle, XCircle, Edit3, User, X } from "lucide-react";
+import type { SubmissionStage } from "@/lib/submission-content";
+import { CheckCircle, XCircle, Edit3, User, X, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-const statusStyles = {
-  pending: { label: "Pending Review", color: "#d97706", bg: "#fef3c7" },
+const statusStyles: Record<SubmissionStage, { label: string; color: string; bg: string }> = {
+  submitted: { label: "Ready to Mark", color: "#2563eb", bg: "#dbeafe" },
+  generated: { label: "Pending Approval", color: "#d97706", bg: "#fef3c7" },
   approved: { label: "Approved", color: "#16a34a", bg: "#dcfce7" },
   rejected: { label: "Rejected", color: "#dc2626", bg: "#fee2e2" },
 };
@@ -36,9 +40,13 @@ export default function FeedbackPage() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [showEditModal, setShowEditModal] = useState(false);
   const [editDraft, setEditDraft] = useState("");
+  const [assignmentBrief, setAssignmentBrief] = useState("");
+  const [rubric, setRubric] = useState(GENERIC_RUBRIC_TEMPLATE);
+  const [tone, setTone] = useState("Constructive");
   const [pageLoading, setPageLoading] = useState(true);
   const [pageError, setPageError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     async function loadItems() {
@@ -72,7 +80,7 @@ export default function FeedbackPage() {
         return false;
       }
 
-      if (filterStatus !== "all" && item.status !== filterStatus) {
+      if (filterStatus !== "all" && getSubmissionStage(item) !== filterStatus) {
         return false;
       }
 
@@ -90,9 +98,20 @@ export default function FeedbackPage() {
     filteredItems.find((item) => item.id === selectedId) ??
     filteredItems[0] ??
     null;
+  const selectedStage = selectedItem ? getSubmissionStage(selectedItem) : null;
+  const selectedStatusStyle = selectedStage ? statusStyles[selectedStage] : null;
+  const rawSubmission = selectedItem
+    ? readRawSubmissionContent(selectedItem.feedback, selectedItem.grade)
+    : null;
+
+  useEffect(() => {
+    setAssignmentBrief("");
+    setRubric(GENERIC_RUBRIC_TEMPLATE);
+    setTone("Constructive");
+  }, [selectedId]);
 
   function openEditModal() {
-    if (!selectedItem) {
+    if (!selectedItem || !selectedItem.feedback) {
       return;
     }
 
@@ -206,6 +225,61 @@ export default function FeedbackPage() {
     }
   }
 
+  async function generateFeedbackFromSubmission() {
+    if (!selectedItem || !rawSubmission) {
+      return;
+    }
+
+    setGenerating(true);
+    setPageError("");
+
+    try {
+      const formData = new FormData();
+      formData.append("studentName", selectedItem.student?.name ?? "Student");
+      formData.append("module", selectedItem.module?.code ?? "Module");
+      formData.append("assignment", selectedItem.assignment);
+      formData.append("assignmentBrief", assignmentBrief);
+      formData.append("rubric", rubric);
+      formData.append("tone", tone);
+      formData.append("submissionText", rawSubmission.text);
+
+      const response = await fetch("/api/generate-feedback", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Could not generate feedback.");
+      }
+
+      const updated = await updateSubmission(selectedItem.id, {
+        feedback: data.feedback,
+        grade: data.grade,
+        status: "pending",
+      });
+
+      if (!updated) {
+        throw new Error("Could not save generated feedback.");
+      }
+
+      setItems((current) =>
+        current.map((item) =>
+          item.id === selectedItem.id
+            ? { ...item, feedback: updated.feedback, grade: updated.grade, status: updated.status }
+            : item
+        )
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Could not generate feedback.";
+      setPageError(message);
+    } finally {
+      setGenerating(false);
+    }
+  }
+
   if (loading || !user) return null;
 
   return (
@@ -216,7 +290,7 @@ export default function FeedbackPage() {
         <div style={{ marginBottom: "28px" }}>
           <h1 style={{ fontSize: "22px", fontWeight: "700", color: "#1e293b" }}>Feedback Review</h1>
           <p style={{ fontSize: "14px", color: "#64748b", marginTop: "4px" }}>
-            Review AI-generated feedback before it is shown to students.
+            Mark submitted work, then review AI-generated feedback before it is shown to students.
           </p>
         </div>
 
@@ -249,7 +323,8 @@ export default function FeedbackPage() {
 
                 <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ padding: "10px 12px", borderRadius: "8px", border: "1px solid #d1d5db", fontSize: "13px", color: "#1e293b", backgroundColor: "#fff" }}>
                   <option value="all">All Statuses</option>
-                  <option value="pending">Pending</option>
+                  <option value="submitted">Ready to Mark</option>
+                  <option value="generated">Pending Approval</option>
                   <option value="approved">Approved</option>
                   <option value="rejected">Rejected</option>
                 </select>
@@ -265,7 +340,7 @@ export default function FeedbackPage() {
 
               {filteredItems.map((item, index) => {
                 const isSelected = item.id === selectedItem?.id;
-                const status = statusStyles[item.status];
+                const status = statusStyles[getSubmissionStage(item)];
 
                 return (
                   <button
@@ -317,7 +392,7 @@ export default function FeedbackPage() {
                       <User size={18} color="#2563eb" />
                     </div>
 
-                    <div>
+                  <div>
                       <h2 style={{ fontSize: "17px", fontWeight: "700", color: "#1e293b" }}>{selectedItem.student?.name ?? "Student"}</h2>
                       <p style={{ fontSize: "13px", color: "#64748b", marginTop: "2px" }}>
                         {selectedItem.student?.username ?? "-"} · {selectedItem.module?.code ?? "Module"} · Submitted {formatDate(selectedItem.submitted_date)}
@@ -325,9 +400,11 @@ export default function FeedbackPage() {
                     </div>
                   </div>
 
-                  <span style={{ fontSize: "12px", fontWeight: "500", color: statusStyles[selectedItem.status].color, backgroundColor: statusStyles[selectedItem.status].bg, padding: "4px 12px", borderRadius: "20px", flexShrink: 0 }}>
-                    {statusStyles[selectedItem.status].label}
-                  </span>
+                  {selectedStatusStyle && (
+                    <span style={{ fontSize: "12px", fontWeight: "500", color: selectedStatusStyle.color, backgroundColor: selectedStatusStyle.bg, padding: "4px 12px", borderRadius: "20px", flexShrink: 0 }}>
+                      {selectedStatusStyle.label}
+                    </span>
+                  )}
                 </div>
 
                 <div style={{ backgroundColor: "#f8fafc", borderRadius: "10px", padding: "16px 20px", marginBottom: "20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -337,22 +414,103 @@ export default function FeedbackPage() {
                   </div>
 
                   <div style={{ textAlign: "right" }}>
-                    <p style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.05em" }}>Suggested Mark</p>
-                    <p style={{ fontSize: "26px", fontWeight: "700", color: "#1e293b", marginTop: "2px" }}>{formatGradeDisplay(selectedItem.grade)}</p>
+                    <p style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      {selectedStage === "submitted" ? "Queue Status" : "Suggested Mark"}
+                    </p>
+                    <p style={{ fontSize: "26px", fontWeight: "700", color: "#1e293b", marginTop: "2px" }}>
+                      {selectedStage === "submitted" ? "Ready" : formatGradeDisplay(selectedItem.grade)}
+                    </p>
                   </div>
                 </div>
 
-                <div style={{ backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "20px", marginBottom: "20px" }}>
-                  <h3 style={{ fontSize: "11px", fontWeight: "600", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "14px" }}>
-                    AI-Generated Feedback
-                  </h3>
+                {selectedStage === "submitted" && rawSubmission && (
+                  <>
+                    <div style={{ backgroundColor: "#eff6ff", borderRadius: "10px", border: "1px solid #bfdbfe", padding: "14px 16px", marginBottom: "20px" }}>
+                      <p style={{ fontSize: "13px", color: "#1d4ed8", lineHeight: "1.6", margin: 0 }}>
+                        Marker flow: read the submitted work, paste the assignment brief, add the marking rubric, then generate a draft. Once the draft looks right, approve it to release feedback to the student.
+                      </p>
+                    </div>
 
-                  <p style={{ fontSize: "14px", color: "#374151", lineHeight: "1.75", whiteSpace: "pre-line" }}>
-                    {selectedItem.feedback ?? "No feedback found."}
-                  </p>
-                </div>
+                    <div style={{ backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "20px", marginBottom: "20px" }}>
+                      <h3 style={{ fontSize: "11px", fontWeight: "600", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "14px" }}>
+                        Submitted Files
+                      </h3>
 
-                {selectedItem.status === "pending" && (
+                      <p style={{ fontSize: "13px", color: "#475569", marginBottom: "12px" }}>
+                        {rawSubmission.fileNames.join(", ")}
+                      </p>
+
+                      <div style={{ backgroundColor: "#f8fafc", borderRadius: "8px", padding: "14px", border: "1px solid #e2e8f0", maxHeight: "220px", overflowY: "auto" }}>
+                        <p style={{ fontSize: "13px", color: "#374151", lineHeight: "1.7", whiteSpace: "pre-line" }}>
+                          {rawSubmission.text}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div style={{ backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "20px", marginBottom: "20px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", marginBottom: "12px" }}>
+                        <h3 style={{ fontSize: "11px", fontWeight: "600", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                          Marking Setup
+                        </h3>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAssignmentBrief(BAYESIAN_ESSAY_BRIEF);
+                            setRubric(BAYESIAN_ESSAY_RUBRIC);
+                          }}
+                          style={{ border: "1px solid #cbd5e1", backgroundColor: "#fff", color: "#334155", fontSize: "12px", fontWeight: "600", borderRadius: "999px", padding: "6px 10px", cursor: "pointer" }}
+                        >
+                          Load Bayesian Essay Example
+                        </button>
+                      </div>
+
+                      <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                        <div>
+                          <label style={{ display: "block", fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "6px" }}>Assignment Brief</label>
+                          <textarea value={assignmentBrief} onChange={(e) => setAssignmentBrief(e.target.value)} rows={8} style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #d1d5db", fontSize: "14px", color: "#1e293b", resize: "vertical", boxSizing: "border-box", lineHeight: "1.5" }} />
+                        </div>
+
+                        <div>
+                          <label style={{ display: "block", fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "6px" }}>Rubric</label>
+                          <textarea value={rubric} onChange={(e) => setRubric(e.target.value)} rows={12} style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #d1d5db", fontSize: "14px", color: "#1e293b", resize: "vertical", boxSizing: "border-box", lineHeight: "1.5" }} />
+                        </div>
+
+                        <div>
+                          <label style={{ display: "block", fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "6px" }}>Feedback Tone</label>
+                          <select value={tone} onChange={(e) => setTone(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #d1d5db", fontSize: "13px", color: "#1e293b", backgroundColor: "#fff" }}>
+                            <option>Constructive</option>
+                            <option>Direct</option>
+                            <option>Encouraging</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={generateFeedbackFromSubmission}
+                        disabled={generating || !assignmentBrief.trim() || !rubric.trim()}
+                        style={{ marginTop: "16px", display: "inline-flex", alignItems: "center", gap: "8px", padding: "12px 18px", borderRadius: "8px", border: "none", backgroundColor: generating ? "#475569" : "#1e293b", color: "#fff", fontSize: "14px", fontWeight: "600", cursor: generating ? "not-allowed" : "pointer" }}
+                      >
+                        {generating && <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} />}
+                        {generating ? "Generating..." : "Generate Feedback"}
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {selectedStage !== "submitted" && (
+                  <div style={{ backgroundColor: "#fff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "20px", marginBottom: "20px" }}>
+                    <h3 style={{ fontSize: "11px", fontWeight: "600", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "14px" }}>
+                      AI-Generated Feedback
+                    </h3>
+
+                    <p style={{ fontSize: "14px", color: "#374151", lineHeight: "1.75", whiteSpace: "pre-line" }}>
+                      {selectedItem.feedback ?? "No feedback found."}
+                    </p>
+                  </div>
+                )}
+
+                {selectedStage === "generated" && (
                   <div style={{ display: "flex", gap: "10px" }}>
                     <button onClick={rejectItem} disabled={saving} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 18px", borderRadius: "8px", border: "1px solid #fca5a5", backgroundColor: "#fff", color: "#dc2626", fontSize: "14px", fontWeight: "500", cursor: "pointer" }}>
                       <XCircle size={16} /> Reject
@@ -368,14 +526,14 @@ export default function FeedbackPage() {
                   </div>
                 )}
 
-                {selectedItem.status === "approved" && (
+                {selectedStage === "approved" && (
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "14px 16px", backgroundColor: "#f0fdf4", borderRadius: "8px", border: "1px solid #bbf7d0" }}>
                     <CheckCircle size={16} color="#16a34a" />
                     <span style={{ fontSize: "14px", color: "#15803d", fontWeight: "500" }}>Feedback approved and sent to student.</span>
                   </div>
                 )}
 
-                {selectedItem.status === "rejected" && (
+                {selectedStage === "rejected" && (
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "14px 16px", backgroundColor: "#fef2f2", borderRadius: "8px", border: "1px solid #fecaca" }}>
                     <XCircle size={16} color="#dc2626" />
                     <span style={{ fontSize: "14px", color: "#b91c1c", fontWeight: "500" }}>Feedback rejected. This submission needs more work before approval.</span>
@@ -424,6 +582,8 @@ export default function FeedbackPage() {
           </div>
         </div>
       )}
+
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

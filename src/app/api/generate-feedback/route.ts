@@ -6,8 +6,8 @@
 // 3. send the text to Anthropic
 // 4. return feedback and a mark
 
-import mammoth from "mammoth";
 import { NextRequest, NextResponse } from "next/server";
+import { extractSubmissionBundle, MAX_SUBMISSION_TEXT } from "@/lib/file-extraction";
 
 // Use the Node runtime because file parsing needs Buffer support.
 export const runtime = "nodejs";
@@ -59,51 +59,6 @@ MARK: NN%
 TONE — match the requested tone (Constructive, Direct, or Encouraging). Always be respectful.
 `.trim();
 
-// Limit the text length so a huge file does not create a giant AI request.
-const MAX_SUBMISSION_TEXT = 12000;
-
-// Turn one uploaded file into plain text.
-// The live hosted app supports TXT and DOCX right now.
-async function extractTextFromFile(file: File) {
-  const fileName = file.name.toLowerCase();
-  const fileBuffer = Buffer.from(await file.arrayBuffer());
-
-  if (fileName.endsWith(".txt")) {
-    return fileBuffer.toString("utf8");
-  }
-
-  if (fileName.endsWith(".docx")) {
-    const result = await mammoth.extractRawText({ buffer: fileBuffer });
-    return result.value;
-  }
-
-  if (fileName.endsWith(".pdf")) {
-    throw new Error("PDF uploads are not supported in the hosted version yet. Please use .docx or .txt files.");
-  }
-
-  throw new Error(`Unsupported file type: ${file.name}`);
-}
-
-// Join all uploaded files into one block of text for the AI prompt.
-async function extractSubmissionText(files: File[]) {
-  const parts: string[] = [];
-
-  for (const file of files) {
-    const text = await extractTextFromFile(file);
-    const cleanText = text.replace(/\s+/g, " ").trim();
-
-    if (cleanText) {
-      parts.push(`File: ${file.name}\n${cleanText}`);
-    }
-  }
-
-  if (parts.length === 0) {
-    throw new Error("No readable text was found in the uploaded files.");
-  }
-
-  return parts.join("\n\n").slice(0, MAX_SUBMISSION_TEXT);
-}
-
 export async function POST(request: NextRequest) {
   // Read the AI key from the environment.
   const apiKey = process.env.ANTHROPIC_API_KEY ?? "";
@@ -130,6 +85,7 @@ export async function POST(request: NextRequest) {
   const assignmentBrief = String(formData.get("assignmentBrief") ?? "").trim();
   const rubric = String(formData.get("rubric") ?? "").trim();
   const tone = String(formData.get("tone") ?? "Constructive");
+  const directSubmissionText = String(formData.get("submissionText") ?? "").trim();
 
   if (!assignmentBrief) {
     return NextResponse.json({ error: "Please add the assignment brief." }, { status: 400 });
@@ -142,15 +98,23 @@ export async function POST(request: NextRequest) {
   // Pull out the uploaded files.
   const files = formData.getAll("files").filter((item): item is File => item instanceof File);
 
-  if (files.length === 0) {
-    return NextResponse.json({ error: "Please upload at least one file." }, { status: 400 });
+  if (files.length === 0 && !directSubmissionText) {
+    return NextResponse.json(
+      { error: "Please upload at least one file or provide submission text." },
+      { status: 400 }
+    );
   }
 
   // Convert the uploaded file content into plain text.
   let submissionText = "";
 
   try {
-    submissionText = await extractSubmissionText(files);
+    if (directSubmissionText) {
+      submissionText = directSubmissionText.slice(0, MAX_SUBMISSION_TEXT);
+    } else {
+      const bundle = await extractSubmissionBundle(files);
+      submissionText = bundle.text;
+    }
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Could not read the uploaded files.";
